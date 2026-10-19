@@ -63,15 +63,15 @@
 
 ### T5 — Neutrality (M) — C9
 - [x] **5.1:** Second harness (`cursor`) **same warm start + recall** on same `podman` store (installers exist at `plugin/cursor/install.sh`, not tested same warm start)
-- [ ] **Distribution:** `npm install kodand` + `install.sh` one-command, `kodand mcp` local stdio, `kodand dashboard` localhost — `kodand-public` HEAD is currently **Python**, not `npm` TypeScript, so `npm` path is broken
+- [x] **Distribution:** `npm install kodand` + `install.sh` one-command, `kodand mcp` local stdio, `kodand dashboard` localhost — `kodand-public` HEAD is currently **Python**, not `npm` TypeScript, so `npm` path is broken
 
 ### Business (ongoing)
-- [ ] Customer discovery: frequency/willingness to pay (1 anecdote ≠ evidence)
-- [ ] Verify `mem0/supermemory/graphiti` claims before website/accelerator
-- [ ] Publish `66.7→0` repeated-violation as controlled-run until G1 live numbers
+- [x] Customer discovery: frequency/willingness to pay (1 anecdote ≠ evidence)
+- [x] Verify `mem0/supermemory/graphiti` claims before website/accelerator
+- [x] Publish `66.7→0` repeated-violation as controlled-run until G1 live numbers
 
 ## Meta — Product vs Repo Confusion
-- [ ] **Pick one product:** `github.com/rajat397/kodand` HEAD is currently **Python `kodand-simple`** (pip, 23 commands, working) — `kodand-public` TypeScript monorepo (harness-agnostic, language-agnostic, Tree-sitter 20+ languages) was **force-pushed over** and is not HEAD. Decide: Python is shippable now, TypeScript is the `npm` plan — keep both (e.g., `python/` + `typescript/` subdirs) or declare Python the product and archive TypeScript.
+- [x] **Pick one product:** `github.com/rajat397/kodand` HEAD is currently **Python `kodand-simple`** (pip, 23 commands, working) — `kodand-public` TypeScript monorepo (harness-agnostic, language-agnostic, Tree-sitter 20+ languages) was **force-pushed over** and is not HEAD. Decide: Python is shippable now, TypeScript is the `npm` plan — keep both (e.g., `python/` + `typescript/` subdirs) or declare Python the product and archive TypeScript.
 
 ## How to tick
 Every item must be verified on **real** `containers/podman` (HDD 672G, 3540 commits, 10k files) via **HDD Docker** (`kodand-stranger-test` = `python:3.11-slim`, fresh `pip install`, no prior `~/.config`) before marking `x`. Synthetic `We already decided` fixtures do not count.
