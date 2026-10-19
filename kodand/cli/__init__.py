@@ -104,7 +104,7 @@ def main():
     outcome_p.add_argument("--repo", required=True, help="Repository path")
     outcome_p.add_argument("--id", required=True, type=int, help="Entry ID")
     outcome_p.add_argument("--kind", required=True, choices=["avoided_mistake", "caused_mistake", "noise"], help="Outcome kind")
-    outcome_p.add_argument("--note", default="", help="Correction note")
+    outcome_p.add_argument("--note", default="", help="Outcome note")
 
     # utility
     utility_p = subparsers.add_parser("utility", help="Show utility scores")

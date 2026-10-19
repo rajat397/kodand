@@ -1,8 +1,10 @@
 README.md
 setup.py
 kodand/__init__.py
+kodand/harness_adapter.py
 kodand/install.py
 kodand/outcome.py
+kodand/scope.py
 kodand/store.py
 kodand/utility.py
 kodand/warmstart.py
