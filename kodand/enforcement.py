@@ -45,6 +45,14 @@ class EnforcementLadder:
         unquoted prose memories produce broad patterns — see iterations log.
         """
         import re
+        # Prefer the FORBIDDEN side: "instead of X" beats "use Y"; "never <verb> X"
+        # beats a bare first backtick (which is often the replacement).
+        m = re.search(r"instead of\s+`([^`]+)`", content)
+        if m:
+            return m.group(1).strip()
+        m = re.search(r"never\s+(?:use|leave|hardcode|do|run|commit|push)?\s*`([^`]+)`", content)
+        if m:
+            return m.group(1).strip()
         for pat in (r"`([^`]+)`", r"'([^']{3,})'"):
             m = re.search(pat, content)
             if m:
@@ -66,9 +74,11 @@ class EnforcementLadder:
 
         if level == "hook":
             path = os.path.join(enforce_dir, f"hook-{entry_id}.sh")
+            # POSIX sh single-quote escaping for the pattern.
+            sh_token = token.replace("'", "'\\''")
             script = (
                 "#!/bin/sh\n" + header
-                + f"PATTERN={token!r}\n"
+                + f"PATTERN='{sh_token}'\n"
                 + 'if git diff --cached --name-only 2>/dev/null | grep -q .; then\n'
                 + '  if git diff --cached 2>/dev/null | grep -qF "$PATTERN"; then\n'
                 + f'    echo "kodand: blocked by memory#{entry_id}: {content[:120]}" >&2\n'
@@ -121,7 +131,10 @@ class EnforcementLadder:
             path = os.path.join(tests_dir, f"test_kodand_{entry_id}.py")
             with open(path, "w") as f:
                 f.write(
-                    header.replace("# ", '"""') + '\nkodand enforcement test — generated, do not hand-edit.\n"""\n'
+                    '"""kodand enforcement test - generated, do not hand-edit.\n'
+                    + f"memory#{entry_id} level=test\n"
+                    + f"correction: {content[:200].replace(chr(10), ' ')}\n"
+                    + '"""\n'
                     + f'PATTERN = {token!r}\n'
                     + 'def test_kodand_enforced_correction():\n'
                     + '    import pathlib\n'

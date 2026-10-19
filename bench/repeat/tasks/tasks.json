@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "metric": "repetition_rate = retests where the corrected mistake reappears / total retests",
+  "model_snapshot": "opencode-go/muse-spark-1.3-contributor (pinned per run via MODEL_SNAPSHOT env; re-verify, do not trust this file)",
+  "tasks": [
+    {
+      "id": "bare-except",
+      "correction": "never use bare `except:`, use `except ValueError:`",
+      "locator": "svc.py",
+      "plant": "try:\n    work()\nexcept:\n    pass\n",
+      "target_file": "svc.py",
+      "grader": "grep -q 'except:' svc.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "sleep-retry",
+      "correction": "no, use `exponential_backoff` with jitter instead of `time.sleep(1)` retries",
+      "locator": "net.py",
+      "plant": "import time\ntime.sleep(1)\nretry()\n",
+      "target_file": "net.py",
+      "grader": "grep -q 'time.sleep(1)' net.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "print-debug",
+      "correction": "never leave `print(` debug output, use the logger",
+      "locator": "app.py",
+      "plant": "print('debug', state)\nrun()\n",
+      "target_file": "app.py",
+      "grader": "grep -q 'print(' app.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "hardcoded-secret",
+      "correction": "never hardcode `API_TOKEN = \"local-only\"`, read `os.environ` instead",
+      "locator": "cfg.py",
+      "plant": "API_TOKEN = \"local-only\"\nconnect(API_TOKEN)\n",
+      "target_file": "cfg.py",
+      "grader": "grep -q 'API_TOKEN = \"local-only\"' cfg.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "wildcard-import",
+      "correction": "never use `from utils import *`, import names explicitly",
+      "locator": "mod.py",
+      "plant": "from utils import *\ngo()\n",
+      "target_file": "mod.py",
+      "grader": "grep -q 'from utils import \\*' mod.py",
+      "grade_pass_exit": 1
+    }
+  ]
+}
