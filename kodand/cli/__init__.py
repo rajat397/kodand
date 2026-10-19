@@ -11,6 +11,10 @@ from kodand.recall import create_recall_engine, recall
 from kodand.trust import TrustSurface
 from kodand.hooks import before_tool
 from kodand.warmstart import create_warm_start, get_warm_context
+from kodand.team import promote_to_team, drill_poison
+from kodand.swarm import SwarmCoordination
+from kodand.handoff import Handoff
+from kodand.enforcement import EnforcementLadder
 from kodand.anchor import get_anchored, resolve_anchor
 from kodand.manifest import flag_conventions, discover_manifests
 from kodand.install import install_harness, uninstall_harness, list_harnesses, init_repo
@@ -119,6 +123,36 @@ def main():
     utility_p = subparsers.add_parser("utility", help="Show utility scores")
     utility_p.add_argument("--repo", required=True, help="Repository path")
     utility_p.add_argument("--limit", type=int, default=10, help="Maximum results")
+
+    # team-promote (Iter 10, C9)
+    team_p = subparsers.add_parser("team-promote", help="Promote memory to team scope (quorum + screening)")
+    team_p.add_argument("--repo", required=True, help="Repository path")
+    team_p.add_argument("--id", required=False, type=int, help="Entry ID")
+    team_p.add_argument("--reviewers", nargs="+", default=["alice","bob"], help="Reviewers")
+    team_p.add_argument("--quorum", type=int, default=2, help="Quorum")
+    team_p.add_argument("--drill", action="store_true", help="Run poison drill instead")
+
+    # swarm claim (Iter 10, C4)
+    swarm_p = subparsers.add_parser("swarm-claim", help="Claim a resource for a session")
+    swarm_p.add_argument("--repo", required=True, help="Repository path")
+    swarm_p.add_argument("--resource", required=True, help="Resource (file)")
+    swarm_p.add_argument("--session", required=True, help="Session ID")
+    swarm_p.add_argument("--release", action="store_true", help="Release instead of claim")
+
+    # handoff (Iter 10, C4.4)
+    handoff_p = subparsers.add_parser("handoff", help="Capture or resume session handoff")
+    handoff_p.add_argument("--repo", required=True, help="Repository path")
+    handoff_p.add_argument("--session", required=True, help="Session ID")
+    handoff_p.add_argument("--decided", nargs="*", default=[], help="Decided items")
+    handoff_p.add_argument("--done", nargs="*", default=[], help="Done items")
+    handoff_p.add_argument("--blocked", nargs="*", default=[], help="Blocked items")
+    handoff_p.add_argument("--resume", action="store_true", help="Resume instead of capture")
+
+    # enforce (Iter 10, C7 ladder)
+    enforce_p = subparsers.add_parser("enforce-promote", help="Promote memory up enforcement ladder")
+    enforce_p.add_argument("--repo", required=True, help="Repository path")
+    enforce_p.add_argument("--id", required=True, type=int, help="Entry ID")
+    enforce_p.add_argument("--level", required=True, choices=["context","hook","lint","test","ci"], help="Target level")
 
     # anchor (Iter 9, C6)
     anchor_p = subparsers.add_parser("anchor", help="Show anchored memories with rename tolerance")
@@ -320,6 +354,40 @@ def main():
         else:
             for f in flags:
                 print(f"  #{f['memory_id']} {f['reason']} -- {f['content']}")
+
+    elif args.command == "team-promote":
+        if args.drill:
+            r = drill_poison(args.repo)
+            print(f"Poison drill blocked={r['blocked']} reason={r['reason']}")
+        else:
+            if args.id is None:
+                print("error: --id required (or use --drill)")
+                sys.exit(2)
+            r = promote_to_team(args.repo, args.id, args.reviewers, args.quorum)
+            print(f"Promote ok={r['ok']} reason={r.get('reason','')}")
+
+    elif args.command == "swarm-claim":
+        sw = SwarmCoordination(args.repo)
+        if args.release:
+            ok = sw.release(args.resource, args.session)
+            print(f"Release {args.resource} by {args.session}: {ok}")
+        else:
+            r = sw.claim(args.resource, args.session)
+            print(f"Claim {args.resource} by {args.session}: allowed={r['allowed']} {r.get('reason','')}")
+
+    elif args.command == "handoff":
+        ho = Handoff(args.repo)
+        if args.resume:
+            r = ho.resume(args.session)
+            print(f"Resume {args.session}: {r}")
+        else:
+            r = ho.capture(args.session, decided=args.decided, done=args.done, blocked=args.blocked)
+            print(f"Handoff {r['handoff_id']} decided={len(r['decided'])} done={len(r['done'])} blocked={len(r['blocked'])}")
+
+    elif args.command == "enforce-promote":
+        en = EnforcementLadder(args.repo)
+        ok = en.promote(args.id, args.level)
+        print(f"Promote {args.id} -> {args.level}: {ok} now={en.get_enforcement_level(args.id)}")
 
     elif args.command == "utility":
         scorer = create_utility_scorer(args.repo)
