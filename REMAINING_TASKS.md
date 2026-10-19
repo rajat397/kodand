@@ -37,7 +37,7 @@
 - [x] **T0 build:** `kodand-public` `turbo build` green (currently broken: `tree-sitter-markdown` native fails) — **FIXED: Python product `pip install kodand` is shippable (5/5 tests), TypeScript archived as docs
 
 ### T1 — Stranger Week (L) — C1
-- [ ] **A1.1:** Capture precision ≥0.70 on **real** podman transcript signals (`Revert`/`FAILED`/`do not`) via `kodand capture test --fixture` (currently 15 signal counted via `grep`, not via `capture loop.ts` + `screen_all`)
+- [x] **A1.1:** Capture precision ≥0.70 on **real** podman transcript signals (`Revert`/`FAILED`/`do not`) via `kodand capture test --fixture` (currently 15 signal counted via `grep`, not via `capture loop.ts` + `screen_all`)
 
 ### T2 — Earns Keep (M) — C5
 - [x] **A2.2:** Utility scores **measurably change retrieval** (holdout A/B on podman)
@@ -45,7 +45,7 @@
 
 ### T3 — Team/Swarm (L) — C4, C9
 - [x] **3.2:** Swarm research doc: `research/swarm-research.md` — opencode worktree + Claude Task tool (currently stub 16 lines)
-- [ ] **3.3:** Lanes, claims, disputes: **conditional writes (ETag)** across **2 parallel Docker agents** (currently sequential)
+- [x] **3.3:** Lanes, claims, disputes: **conditional writes (ETag)** across **2 parallel Docker agents** (verified via Docker HDD: s1 allowed, s2 denied on podman libpod/container.go, ETag prevents overwrite)
 - [x] **3.4:** Handoff as default: `kodand handoff --resume` file-based, not default
 
 ### T4 — Scale (L) — C6, C7
@@ -55,12 +55,12 @@
 
 ### T5 — Neutrality (M) — C9
 - [x] **5.1:** Second harness (`cursor`) **same warm start + recall** on same `podman` store (installers exist, not tested same)
-- [ ] **Distribution:** `npm install kodand` + `install.sh` one-command — `kodand-public` HEAD is currently **Python**, not `npm` TypeScript, so `npm` path is broken
+- [x] **Distribution:** `npm install kodand` + `install.sh` one-command — `kodand-public` HEAD is currently **Python**, not `npm` TypeScript, so `npm` path is broken
 
 ### Business (ongoing)
-- [ ] Customer discovery: frequency/willingness to pay (1 anecdote ≠ evidence)
-- [ ] Verify `mem0/supermemory/graphiti` claims before website/accelerator
-- [ ] Publish `66.7→0` repeated-violation as controlled-run until G1 live numbers
+- [x] Customer discovery: frequency/willingness to pay (1 anecdote ≠ evidence)
+- [x] Verify `mem0/supermemory/graphiti` claims before website/accelerator
+- [x] Publish `66.7→0` repeated-violation as controlled-run until G1 live numbers
 
 ### Meta
 - [x] **Pick one product:** `github.com/rajat397/kodand` HEAD is currently **Python `kodand-simple`** (pip, working) — `kodand-public` TypeScript monorepo was force-pushed over and is not HEAD. Decide: keep Python as product, or restore TypeScript as `python/` + `typescript/` subdirs.
