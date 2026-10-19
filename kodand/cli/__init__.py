@@ -221,7 +221,9 @@ def main():
         run_capture_loop(args.repo)
 
     elif args.command == "week":
-        print(f"Week report for {args.repo} - not fully implemented yet")
+        from kodand.measure import north_star_report, format_report
+        r = north_star_report(args.repo, args.week)
+        print(format_report(r))
 
     elif args.command == "doctor":
         print("🔍 kodand Doctor")

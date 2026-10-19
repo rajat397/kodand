@@ -36,7 +36,8 @@ class Store:
             updated_at REAL DEFAULT 0,
             superseded_by INTEGER,
             content_hash TEXT,
-            state TEXT DEFAULT 'active'
+            state TEXT DEFAULT 'active',
+            memory_type TEXT DEFAULT 'reference'
         );
         CREATE TABLE IF NOT EXISTS intents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,6 +55,7 @@ class Store:
         );
         CREATE INDEX IF NOT EXISTS idx_memories_state ON memories(state);
         CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope);
+        CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
         CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind);
         CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
         """)
@@ -61,18 +63,23 @@ class Store:
         conn.close()
 
     def remember(self, content: str, surface: str = "text", locator: str = "",
-                 scope: str = "repo", session_id: str = None) -> dict:
+                 scope: str = "repo", session_id: str = None, memory_type: str = "reference") -> dict:
         conn = self._get_conn()
         now = datetime.now().timestamp()
         cur = conn.execute(
-            "INSERT INTO memories (content, surface, locator, scope, session_id, created_at, updated_at, state) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 'active')",
-            (content, surface, locator, scope, session_id or "", now, now)
+            "INSERT INTO memories (content, surface, locator, scope, session_id, created_at, updated_at, memory_type, state) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')",
+            (content, surface, locator, scope, session_id or "", now, now, memory_type)
         )
         entry_id = cur.lastrowid
+        # auto-log captured event for north-star
+        conn.execute(
+            "INSERT INTO events (ts, kind, entry_id, provenance, detail) VALUES (?, ?, ?, ?, ?)",
+            (__import__("datetime").datetime.now().isoformat(), "captured", entry_id, "store.remember", content[:120])
+        )
         conn.commit()
         conn.close()
-        return {"key": entry_id, "content": content, "scope": scope, "state": "active"}
+        return {"key": entry_id, "content": content, "scope": scope, "state": "active", "type": memory_type}
 
     def recall(self, query: str = "", k: int = 5, scope: str = None) -> List[dict]:
         conn = self._get_conn()
