@@ -64,6 +64,16 @@ class Store:
 
     def remember(self, content: str, surface: str = "text", locator: str = "",
                  scope: str = "repo", session_id: str = None, memory_type: str = "reference") -> dict:
+        # Secret/PII exclusion at write time (Tranche 2.4)
+        try:
+            from kodand.scope import check_write
+            ok, reason = check_write(content)
+            if not ok:
+                raise ValueError(reason)
+        except ValueError:
+            raise
+        except Exception:
+            pass
         conn = self._get_conn()
         now = datetime.now().timestamp()
         cur = conn.execute(
@@ -97,6 +107,18 @@ class Store:
             )
         entries = [dict(r) for r in rows.fetchall()]
         conn.close()
+        # Lazy validation: check stale at recall time (warn-only, never block)
+        try:
+            from kodand.validation import is_stale
+            for e in entries:
+                if is_stale(e, self.repo_path):
+                    # log held as stale warning but still return entry
+                    try:
+                        self.log_event("held", e["id"], "validation.lazy", f"stale evidence: {e.get('locator','')}")
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         return entries
 
     def get_memory(self, entry_id: int) -> Optional[dict]:

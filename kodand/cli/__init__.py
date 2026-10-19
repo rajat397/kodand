@@ -188,13 +188,17 @@ def main():
 
     elif args.command == "remember":
         store = get_store(args.repo)
-        entry = store.remember(
-            content=args.content,
-            surface="text",
-            locator=args.file or "",
-            scope=args.scope,
-            session_id="cli",
-        )
+        try:
+            entry = store.remember(
+                content=args.content,
+                surface="text",
+                locator=args.file or "",
+                scope=args.scope,
+                session_id="cli",
+            )
+        except ValueError as e:
+            print(f"❌ Blocked: {e}")
+            sys.exit(1)
         print(f"✅ Memory created: {entry['key']}")
 
     elif args.command == "recall":

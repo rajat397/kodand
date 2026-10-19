@@ -14,7 +14,7 @@ class OutcomeLabeler:
         self.repo_path = repo_path or os.getcwd()
         self.store = get_store(repo_path)
 
-    def label_entry(self, entry_id: int, outcome: str, note: str = "") -> bool:
+    def label_entry(self, entry_id: int, outcome: str, note: str = "", holdout: bool = False) -> bool:
         """Label a memory entry with an outcome label.
         
         Args:
@@ -25,6 +25,8 @@ class OutcomeLabeler:
         Returns:
             True if successful, False if entry not found
         """
+        if holdout:
+            note = (note + " [holdout]") if note else "[holdout]"
         import sqlite3
         conn = self.store._get_conn()
         
