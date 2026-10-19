@@ -11,6 +11,8 @@ from kodand.recall import create_recall_engine, recall
 from kodand.trust import TrustSurface
 from kodand.hooks import before_tool
 from kodand.warmstart import create_warm_start, get_warm_context
+from kodand.anchor import get_anchored, resolve_anchor
+from kodand.manifest import flag_conventions, discover_manifests
 from kodand.install import install_harness, uninstall_harness, list_harnesses, init_repo
 from kodand.outcome import create_outcome_labeler
 from kodand.utility import create_utility_scorer
@@ -117,6 +119,15 @@ def main():
     utility_p = subparsers.add_parser("utility", help="Show utility scores")
     utility_p.add_argument("--repo", required=True, help="Repository path")
     utility_p.add_argument("--limit", type=int, default=10, help="Maximum results")
+
+    # anchor (Iter 9, C6)
+    anchor_p = subparsers.add_parser("anchor", help="Show anchored memories with rename tolerance")
+    anchor_p.add_argument("--repo", required=True, help="Repository path")
+    anchor_p.add_argument("--file", required=True, help="File path")
+
+    # manifest-watch (Iter 9, C6.2)
+    manifest_p = subparsers.add_parser("manifest-watch", help="Flag convention memories whose dependency changed")
+    manifest_p.add_argument("--repo", required=True, help="Repository path")
 
     # hook (Iter 7, C3) - prospective injection, reuses C7 plumbing
     hook_p = subparsers.add_parser("hook", help="Prospective hook (tool-bound injection)")
@@ -288,6 +299,27 @@ def main():
         else:
             for h in hits:
                 print(f"[{h['id']}] {h.get('content','')[:120]} -- {h.get('locator','')}")
+
+    elif args.command == "anchor":
+        hits = get_anchored(args.repo, args.file)
+        resolved = resolve_anchor(args.repo, args.file)
+        if resolved != args.file:
+            print(f"Resolved rename: {args.file} -> {resolved}")
+        if not hits:
+            print(f"No anchored memories for {args.file} (resolved: {resolved})")
+        else:
+            for h in hits:
+                print(f"  #{h['id']} {h.get('memory_type','reference')} | {h.get('locator','')} | {h.get('content','')[:80]}")
+
+    elif args.command == "manifest-watch":
+        flags = flag_conventions(args.repo)
+        manifests = discover_manifests(args.repo)
+        print(f"Manifests: {', '.join([__import__('os').path.relpath(m, args.repo) for m in manifests]) or 'none'}")
+        if not flags:
+            print("No convention flagged.")
+        else:
+            for f in flags:
+                print(f"  #{f['memory_id']} {f['reason']} -- {f['content']}")
 
     elif args.command == "utility":
         scorer = create_utility_scorer(args.repo)
