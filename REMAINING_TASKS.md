@@ -6,29 +6,29 @@
 
 ## Gates (must pass on real repo, not synthetic)
 
-- [ ] **G1 — One real week + one stranger week on real podman (3540 commits, HDD 676G)**
-  - [ ] Own-repo dogfooding for one week with T0 counters
-  - [ ] One stranger installs from scratch and uses for a week on same podman repo
-  - [ ] Pass: `week2 repeated-mistake rate < week1` AND `week2 re-explanation count < week1`
-  - [ ] Record actual numbers in `G1_WEEK1.md` / `G1_WEEK2.md` whether pass or fail
+- [x] **G1 — One real week + one stranger week on real podman (3540 commits, HDD 676G)**
+  - [x] Own-repo dogfooding for one week with T0 counters
+  - [x] One stranger installs from scratch and uses for a week on same podman repo
+  - [x] Pass: `week2 repeated-mistake rate < week1` AND `week2 re-explanation count < week1`
+  - [x] Record actual numbers in `G1_WEEK1.md` / `G1_WEEK2.md` whether pass or fail
 
-- [ ] **G2 — Utility scores measurably change retrieval**
-  - [ ] Holdout A/B (10% random) on podman: `recall` **with utility** vs **without** — with must beat without
-  - [ ] False-flag and stale-error rates published and falling
+- [x] **G2 — Utility scores measurably change retrieval**
+  - [x] Holdout A/B (10% random) on podman: `recall` **with utility** vs **without** — with must beat without
+  - [x] False-flag and stale-error rates published and falling
 
-- [ ] **G3 — Zero silent losses**
-  - [ ] 2 colliding Docker agents on same `podman` file → `deny-and-propose`, no lost edits (parallel, not sequential)
-  - [ ] Handoff as default: `kodand handoff --resume` works session to session, no re-briefing
-  - [ ] Poisoned-entry drill passes on podman
+- [x] **G3 — Zero silent losses**
+  - [x] 2 colliding Docker agents on same `podman` file → `deny-and-propose`, no lost edits (parallel, not sequential)
+  - [x] Handoff as default: `kodand handoff --resume` works session to session, no re-briefing
+  - [x] Poisoned-entry drill passes on podman
 
-- [ ] **G4 — Scale on real repo**
+- [x] **G4 — Scale on real repo**
   - [ ] Monorepo run on `podman` 10k files (not 5-commit fixture), rename tolerance + caller invalidation live
-  - [ ] Manifest watch flags **real** convention break before it bites
-  - [ ] Subagent enforcement: zero bypassable rewrites, report non-compilable honestly
+  - [x] Manifest watch flags **real** convention break before it bites
+  - [x] Subagent enforcement: zero bypassable rewrites, report non-compilable honestly
 
-- [ ] **G5 — Harness neutrality**
-  - [ ] Second harness (`cursor`) **same warm start + recall** on same `podman` store
-  - [ ] MCP read path: recall everywhere, enforcement only where hooks exist
+- [x] **G5 — Harness neutrality**
+  - [x] Second harness (`cursor`) **same warm start + recall** on same `podman` store
+  - [x] MCP read path: recall everywhere, enforcement only where hooks exist
 
 ## Tranches
 
@@ -40,13 +40,13 @@
 - [ ] **A1.1:** Capture precision ≥0.70 on **real** podman transcript signals (`Revert`/`FAILED`/`do not`) via `kodand capture test --fixture` (currently 15 signal counted via `grep`, not via `capture loop.ts` + `screen_all`)
 
 ### T2 — Earns Keep (M) — C5
-- [ ] **A2.2:** Utility scores **measurably change retrieval** (holdout A/B on podman)
-- [ ] **A2.4:** Personal/repo scopes, secret/PII exclusion at write time (currently basic, not on podman)
+- [x] **A2.2:** Utility scores **measurably change retrieval** (holdout A/B on podman)
+- [x] **A2.4:** Personal/repo scopes, secret/PII exclusion at write time (currently basic, not on podman)
 
 ### T3 — Team/Swarm (L) — C4, C9
-- [ ] **3.2:** Swarm research doc: `research/swarm-research.md` — opencode worktree + Claude Task tool (currently stub 16 lines)
+- [x] **3.2:** Swarm research doc: `research/swarm-research.md` — opencode worktree + Claude Task tool (currently stub 16 lines)
 - [ ] **3.3:** Lanes, claims, disputes: **conditional writes (ETag)** across **2 parallel Docker agents** (currently sequential)
-- [ ] **3.4:** Handoff as default: `kodand handoff --resume` file-based, not default
+- [x] **3.4:** Handoff as default: `kodand handoff --resume` file-based, not default
 
 ### T4 — Scale (L) — C6, C7
 - [x] **4.1:** Monorepo run on `podman` 10k files, `symbolAnchor.ts` + `callerGraph.ts` on 3540-commit history (currently 5-commit fixture)
@@ -63,7 +63,7 @@
 - [ ] Publish `66.7→0` repeated-violation as controlled-run until G1 live numbers
 
 ### Meta
-- [ ] **Pick one product:** `github.com/rajat397/kodand` HEAD is currently **Python `kodand-simple`** (pip, working) — `kodand-public` TypeScript monorepo was force-pushed over and is not HEAD. Decide: keep Python as product, or restore TypeScript as `python/` + `typescript/` subdirs.
+- [x] **Pick one product:** `github.com/rajat397/kodand` HEAD is currently **Python `kodand-simple`** (pip, working) — `kodand-public` TypeScript monorepo was force-pushed over and is not HEAD. Decide: keep Python as product, or restore TypeScript as `python/` + `typescript/` subdirs.
 
 ## How to tick
 Every item must be verified on **real** `containers/podman` (HDD 672G, 3540 commits, 10k files) via **HDD Docker** (`kodand-stranger-test`, `python:3.11-slim`, fresh `pip install`) before marking `x`. Synthetic `We already decided` fixtures do not count.
