@@ -18,11 +18,20 @@ class TrustSurface:
         self.store = get_store(repo_path)
 
     def list(self, scope: str = None, freshness: str = "all") -> List[Dict]:
-        """List all entries grouped by scope and freshness."""
+        """List all entries grouped by scope and freshness. Includes utility rank."""
         memories = self.store.list_memories(scope=scope)
+        # attach utility when available
+        try:
+            from kodand.utility import UtilityScorer
+            scorer = UtilityScorer(self.repo_path)
+            for m in memories:
+                m["_utility"] = scorer.compute_utility(m["id"])
+            memories.sort(key=lambda x: (x["_utility"], x.get("created_at",0)), reverse=True)
+        except Exception:
+            pass
         result = []
         for m in memories:
-            result.append({
+            r = {
                 "id": m["id"],
                 "type": m.get("memory_type", "reference"),
                 "content": m["content"][:100] + "..." if len(m.get("content", "")) > 100 else m.get("content", ""),
@@ -31,8 +40,43 @@ class TrustSurface:
                 "state": m.get("state", "active"),
                 "created_at": m.get("created_at"),
                 "updated_at": m.get("updated_at"),
-            })
+            }
+            if "_utility" in m:
+                r["utility"] = m["_utility"]
+                r.pop("_utility", None)
+            # keep _utility for sorting but surface as utility
+            try:
+                if "_utility" not in r:
+                    from kodand.utility import UtilityScorer
+                    r["utility"] = UtilityScorer(self.repo_path).compute_utility(m["id"])
+            except Exception:
+                r["utility"] = 0.0
+            result.append(r)
         return result
+
+    def decay(self, threshold: float = 0.0, older_than_days: int = 7) -> int:
+        """Retire low-utility entries older than N days. Returns count retired."""
+        import time
+        cutoff = time.time() - older_than_days*86400
+        memories = self.store.list_memories(state="active")
+        retired = 0
+        try:
+            from kodand.utility import UtilityScorer
+            scorer = UtilityScorer(self.repo_path)
+        except Exception:
+            return 0
+        for m in memories:
+            if m.get("created_at", 0) > cutoff:
+                continue
+            if scorer.compute_utility(m["id"]) <= threshold:
+                self.store.delete_memory(m["id"])
+                # log retirement
+                try:
+                    self.store.log_event("retired", m["id"], "trust.decay", f"utility<={threshold}")
+                except Exception:
+                    pass
+                retired += 1
+        return retired
 
     def inspect(self, entry_id: int) -> Optional[Dict]:
         """Inspect a specific memory entry."""

@@ -16,8 +16,20 @@ class RecallEngine:
         self.store = get_store(repo_path)
 
     def recall(self, query: str = "", k: int = 5, scope: str = None) -> List[Dict]:
-        """Retrieve relevant memories by keyword search."""
-        return self.store.recall(query=query, k=k, scope=scope)
+        """Retrieve relevant memories by keyword search. Ranked by utility when available."""
+        hits = self.store.recall(query=query, k=k*3, scope=scope)
+        # utility-driven ranking: if utility scorer has data, sort by utility
+        try:
+            from kodand.utility import UtilityScorer
+            scorer = UtilityScorer(self.repo_path)
+            for h in hits:
+                h["_utility"] = scorer.compute_utility(h["id"])
+            hits.sort(key=lambda x: (x["_utility"], x.get("created_at",0)), reverse=True)
+            for h in hits:
+                h.pop("_utility", None)
+        except Exception:
+            pass
+        return hits[:k]
 
     def recall_by_file(self, file_path: str, k: int = 5) -> List[Dict]:
         """Recall memories anchored to a specific file."""
@@ -69,7 +81,17 @@ class RecallEngine:
             if r["id"] not in seen:
                 seen.add(r["id"])
                 unique.append(r)
-
+        # utility ranking
+        try:
+            from kodand.utility import UtilityScorer
+            scorer = UtilityScorer(self.repo_path)
+            for h in unique:
+                h["_utility"] = scorer.compute_utility(h["id"])
+            unique.sort(key=lambda x: (x["_utility"], x.get("created_at",0)), reverse=True)
+            for h in unique:
+                h.pop("_utility", None)
+        except Exception:
+            pass
         return unique[:10]
 
     def get_anchored(self, entry_id: int) -> Optional[Dict]:

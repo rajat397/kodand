@@ -40,9 +40,11 @@ def north_star_report(repo_path=None, week_str=None):
     blocked = count_kind("blocked")
     held = count_kind("held")
     validated = count_kind("validated")
+    retired = count_kind("retired")
     reexpl = count_kind("reexplanation")
     repeated = count_kind("repeated_mistake")
-    outcome = count_kind("outcome")
+    # outcome = explicit outcome labels (avoided/caused/noise) plus legacy 'outcome' kind
+    outcome = count_kind("outcome") + count_kind("outcome_label")
     # outcome includes blocked/held etc? Use separate
     conn.close()
     # repeated-mistake rate = repeated_mistakes / outcome_events if outcome>0 else n/a
@@ -65,6 +67,7 @@ def north_star_report(repo_path=None, week_str=None):
         "blocked": blocked,
         "held": held,
         "validated": validated,
+        "retired": retired,
     }
 
 def format_report(r):
@@ -78,5 +81,6 @@ def format_report(r):
         f"blocked                : {r['blocked']}",
         f"held                   : {r['held']}",
         f"validated              : {r['validated']}",
+        f"retired                : {r.get('retired',0)}",
     ]
     return "\n".join(lines)

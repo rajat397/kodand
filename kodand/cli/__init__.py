@@ -82,6 +82,12 @@ def main():
     trust_delete_p.add_argument("--repo", required=True, help="Repository path")
     trust_delete_p.add_argument("--id", required=True, type=int, help="Entry ID")
 
+    # trust-decay (Iter 8, C5 - retire low-utility)
+    trust_decay_p = subparsers.add_parser("trust-decay", help="Retire low-utility entries")
+    trust_decay_p.add_argument("--repo", required=True, help="Repository path")
+    trust_decay_p.add_argument("--threshold", type=float, default=0.0, help="Utility threshold")
+    trust_decay_p.add_argument("--days", type=int, default=7, help="Older than N days")
+
     # capture-tick
     capture_tick_p = subparsers.add_parser("capture-tick", help="Run capture tick")
     capture_tick_p.add_argument("--repo", required=True, help="Repository path")
@@ -189,7 +195,8 @@ def main():
             print("No entries found.")
         else:
             for e in entries:
-                print(f"  #{e['id']} {e['type']} | {e['scope']} | {e['content'][:60]}")
+                u = e.get("utility", 0)
+                print(f"  #{e['id']} {e['type']} | {e['scope']} | u={u:.1f} | {e['content'][:50]}")
 
     elif args.command == "trust-inspect":
         ts = TrustSurface(args.repo)
@@ -219,6 +226,11 @@ def main():
             print(f"✅ Entry {args.id} retired.")
         else:
             print(f"❌ Entry {args.id} not found.")
+
+    elif args.command == "trust-decay":
+        ts = TrustSurface(args.repo)
+        n = ts.decay(threshold=args.threshold, older_than_days=args.days)
+        print(f"Retired {n} low-utility entries (threshold={args.threshold}, older_than={args.days}d)")
 
     elif args.command == "capture-tick":
         result = run_capture_tick(args.repo)
