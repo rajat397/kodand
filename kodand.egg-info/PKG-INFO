@@ -1,0 +1,53 @@
+Metadata-Version: 2.1
+Name: kodand
+Version: 0.1.0
+Summary: Intent-driven memory plane for coding agents - persistent context across sessions, any language, any harness
+Home-page: https://github.com/rajat397/kodand
+Author: Rajat Srivastava
+Author-email: rajat397@gmail.com
+License: Apache-2.0
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development
+Classifier: Topic :: Utilities
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+
+# kodand
+
+Memory plane beneath coding-agent context windows.
+
+## Install
+
+```bash
+pip install kodand
+kodand init
+kodand install opencode   # or claude-code, cursor, windsurf, qoder, vscode, all
+```
+
+## Commands
+
+- `kodand init` - Initialize kodand for a repo
+- `kodand install <harness>` - Install for a harness
+- `kodand remember` - Store a memory entry
+- `kodand recall` - Search and recall memories
+- `kodand trust-list` - List trust surface entries
+- `kodand capture-tick` - Run capture tick
+- `kodand mcp` - Start MCP server
+- `kodand dashboard` - Start local dashboard
+- `kodand doctor` - Check installation
+
+## License
+
+Apache-2.0
+
+

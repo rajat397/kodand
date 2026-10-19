@@ -1,0 +1,3 @@
+[console_scripts]
+kodand = kodand.cli:main
+
