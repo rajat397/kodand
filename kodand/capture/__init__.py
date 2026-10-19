@@ -56,7 +56,7 @@ class CaptureLoop:
             tf_path = os.path.join(self.repo_path, tf)
             if os.path.exists(tf_path):
                 try:
-                    with open(tf) as f:
+                    with open(tf_path) as f:
                         data = json.load(f)
                     if data.get("failed", 0) > 0:
                         results.append({
@@ -71,11 +71,45 @@ class CaptureLoop:
                     pass
         return results
 
+    def mine_transcript_corrections(self) -> List[Dict]:
+        """Mine session transcripts for explicit user corrections (Fix 5)."""
+        try:
+            from kodand.capture.adapters import read_transcript_file, read_opencode_sessions
+            from kodand.capture.corrections import classify_correction
+        except Exception:
+            return []
+        turns = []
+        try:
+            turns.extend(read_transcript_file(self.repo_path))
+        except Exception:
+            pass
+        try:
+            turns.extend(read_opencode_sessions(self.repo_path))
+        except Exception:
+            pass
+        results = []
+        for t in turns:
+            try:
+                hit = classify_correction(t.get("text", ""))
+            except Exception:
+                hit = None
+            if hit:
+                results.append({
+                    "content": hit["evidence"],
+                    "type": "correction",
+                    "confidence": "high",
+                    "source": "transcript_correction",
+                    "evidence": f"{t.get('source','?')} [{t.get('role','?')}]: {hit['evidence']}",
+                    "anchors": [],
+                })
+        return results
+
     def mine_environment(self) -> List[Dict]:
         """Mine all environment signals for capture candidates."""
         candidates = []
         candidates.extend(self.mine_git_reverts())
         candidates.extend(self.mine_failed_tests())
+        candidates.extend(self.mine_transcript_corrections())
         return candidates
 
     def queue_candidate(self, candidate: Dict) -> bool:
