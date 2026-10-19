@@ -9,6 +9,7 @@ from kodand.store import get_store
 from kodand.capture import run_capture_tick, CaptureLoop
 from kodand.recall import create_recall_engine, recall
 from kodand.trust import TrustSurface
+from kodand.hooks import before_tool
 from kodand.warmstart import create_warm_start, get_warm_context
 from kodand.install import install_harness, uninstall_harness, list_harnesses, init_repo
 from kodand.outcome import create_outcome_labeler
@@ -110,6 +111,12 @@ def main():
     utility_p = subparsers.add_parser("utility", help="Show utility scores")
     utility_p.add_argument("--repo", required=True, help="Repository path")
     utility_p.add_argument("--limit", type=int, default=10, help="Maximum results")
+
+    # hook (Iter 7, C3) - prospective injection, reuses C7 plumbing
+    hook_p = subparsers.add_parser("hook", help="Prospective hook (tool-bound injection)")
+    hook_p.add_argument("--repo", required=True, help="Repository path")
+    hook_p.add_argument("--tool", required=True, help="Tool name")
+    hook_p.add_argument("--args-json", default="{}", help="Tool args as JSON")
 
     args = parser.parse_args()
 
@@ -256,6 +263,19 @@ def main():
             print(f"✅ Outcome labeled for entry {args.id}")
         else:
             print(f"❌ Entry {args.id} not found.")
+
+    elif args.command == "hook":
+        import json
+        try:
+            tool_args = json.loads(args.args_json)
+        except Exception:
+            tool_args = {}
+        hits = before_tool(args.tool, tool_args, args.repo)
+        if not hits:
+            print("No prospective injection.")
+        else:
+            for h in hits:
+                print(f"[{h['id']}] {h.get('content','')[:120]} -- {h.get('locator','')}")
 
     elif args.command == "utility":
         scorer = create_utility_scorer(args.repo)
