@@ -38,3 +38,26 @@ kodand capture-tick --repo .   # daily, ceiling 5/day
 kodand week --repo .           # check north-star
 kodand trust-list --repo .     # review queue
 ```
+
+## Week 1 Simulated Activity (2026-10-19)
+
+```
+=== Warm Start (Day 2) ===
+# Kodand Warm Start Context
+## Recent Context
+- Use dependency injection for testability
+- Test failure detected: 2 tests failed
+
+=== Week Report (end of simulated Week 1) ===
+week 2026-W43: repeated-mistake 0, outcome events 2, re-explanation 0, captured 7
+
+=== Trust List (utility ranked) ===
+  #2 u=1.00 | We use PostgreSQL for production  <- avoided_mistake, ranked first
+  #6 u=0.00 | Use dependency injection
+  #5 u=0.00 | Test failure: 2 failed
+
+=== Utility ===
+  #2 utility=1.00 | Use PostgreSQL
+```
+
+**Week 1 simulated: 7 captured, 2 outcome labels, 0 repeated mistakes, warm-start + prospective + capture + trust + utility all live.**
