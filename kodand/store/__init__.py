@@ -155,20 +155,53 @@ class Store:
         return {"key": entry_id, "content": content, "scope": scope, "state": "active", "type": memory_type}
 
     def recall(self, query: str = "", k: int = 5, scope: str = None) -> List[dict]:
+        import re as _re
         conn = self._get_conn()
+        HOLDOUT = "COALESCE(is_holdout, 0) = 0"
         if query:
+            # FTS5/BM25 rank path (stdlib sqlite, porter stemming) + LIKE union.
+            fts_ids: List[int] = []
+            try:
+                toks = [t for t in _re.findall(r"[A-Za-z0-9_]+", query.lower()) if len(t) >= 2][:12]
+                if toks:
+                    ors = " OR ".join(f'"{t}"' for t in toks)
+                    fts_rows = conn.execute(
+                        "SELECT rowid FROM memories_fts WHERE memories_fts MATCH ? "
+                        "ORDER BY bm25(memories_fts) LIMIT ?",
+                        (ors, k * 3),
+                    ).fetchall()
+                    fts_ids = [r[0] for r in fts_rows]
+            except Exception:
+                fts_ids = []
             like = f"%{query}%"
-            rows = conn.execute(
-                "SELECT * FROM memories WHERE state='active' AND (content LIKE ? OR locator LIKE ?) "
-                "ORDER BY created_at DESC LIMIT ?",
-                (like, like, k)
-            )
+            like_rows = conn.execute(
+                f"SELECT * FROM memories WHERE state='active' AND {HOLDOUT} "
+                "AND (content LIKE ? OR locator LIKE ?) ORDER BY created_at DESC LIMIT ?",
+                (like, like, k * 3),
+            ).fetchall()
+            by_id = {r["id"]: dict(r) for r in like_rows}
+            if fts_ids:
+                placeholders = ",".join("?" for _ in fts_ids)
+                try:
+                    for r in conn.execute(
+                        f"SELECT * FROM memories WHERE id IN ({placeholders}) "
+                        f"AND state='active' AND {HOLDOUT}",
+                        tuple(fts_ids),
+                    ).fetchall():
+                        by_id.setdefault(r["id"], dict(r))
+                except Exception:
+                    pass
+            # FTS rank first, then recency.
+            entries = [by_id[i] for i in fts_ids if i in by_id]
+            entries += [e for i, e in by_id.items() if i not in fts_ids]
+            entries = entries[:k]
         else:
             rows = conn.execute(
-                "SELECT * FROM memories WHERE state='active' ORDER BY created_at DESC LIMIT ?",
+                f"SELECT * FROM memories WHERE state='active' AND {HOLDOUT} "
+                "ORDER BY created_at DESC LIMIT ?",
                 (k,)
             )
-        entries = [dict(r) for r in rows.fetchall()]
+            entries = [dict(r) for r in rows.fetchall()]
         conn.close()
         # Lazy validation: check stale at recall time (warn-only, never block)
         try:

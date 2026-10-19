@@ -18,8 +18,23 @@ class UtilityScorer:
         self.store = get_store(self.repo_path)
 
     def compute_utility(self, entry_id: int) -> float:
-        """Compute utility score for a memory entry."""
+        """Compute utility score for a memory entry.
+
+        Rate-based (not count-based): validated outcomes per exposure, with
+        Laplace-style damping so pure injection frequency cannot self-reinforce.
+        Holdout (counterfactual) entries always score 0 and accrue nothing.
+        """
         conn = self.store._get_conn()
+
+        try:
+            holdout = conn.execute(
+                "SELECT COALESCE(is_holdout, 0) FROM memories WHERE id = ?", (entry_id,)
+            ).fetchone()
+            if holdout and holdout[0]:
+                conn.close()
+                return 0.0
+        except Exception:
+            pass
 
         # Count positive outcomes
         positive = conn.execute(
@@ -33,16 +48,16 @@ class UtilityScorer:
             (entry_id,)
         ).fetchone()[0]
 
-        # Count usage (recall events)
-        usage = conn.execute(
+        # Count exposures (recall events) — damping denominator, not a bonus
+        exposures = conn.execute(
             "SELECT COUNT(*) FROM events WHERE entry_id = ? AND kind = 'injected'",
             (entry_id,)
         ).fetchone()[0]
 
         conn.close()
 
-        score = positive * 1.0 - negative * 1.0 + usage * 0.1
-        return max(0.0, score)  # Utility can't be negative
+        score = (positive * 1.0 - negative * 1.0) / (exposures + 2.0)
+        return max(0.0, score)
 
     def get_top_entries(self, repo_path: str = None, limit: int = 10) -> List[Dict]:
         """Get top entries by utility score."""

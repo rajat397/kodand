@@ -35,7 +35,8 @@ class RecallEngine:
         """Recall memories anchored to a specific file."""
         conn = self.store._get_conn()
         rows = conn.execute(
-            "SELECT * FROM memories WHERE state='active' AND locator LIKE ? ORDER BY created_at DESC LIMIT ?",
+            "SELECT * FROM memories WHERE state='active' AND COALESCE(is_holdout, 0) = 0 "
+            "AND locator LIKE ? ORDER BY created_at DESC LIMIT ?",
             (f"%{file_path}%", k)
         )
         entries = [dict(r) for r in rows.fetchall()]
@@ -46,7 +47,8 @@ class RecallEngine:
         """Recall memories anchored to a specific symbol."""
         conn = self.store._get_conn()
         rows = conn.execute(
-            "SELECT * FROM memories WHERE state='active' AND locator LIKE ? ORDER BY created_at DESC LIMIT ?",
+            "SELECT * FROM memories WHERE state='active' AND COALESCE(is_holdout, 0) = 0 "
+            "AND locator LIKE ? ORDER BY created_at DESC LIMIT ?",
             (f"%{symbol}%", k)
         )
         entries = [dict(r) for r in rows.fetchall()]

@@ -25,16 +25,26 @@ class OutcomeLabeler:
         Returns:
             True if successful, False if entry not found
         """
-        if holdout:
-            note = (note + " [holdout]") if note else "[holdout]"
         import sqlite3
         conn = self.store._get_conn()
-        
+        # Ensure holdout column exists (migration for pre-existing DBs).
+        try:
+            conn.execute("ALTER TABLE memories ADD COLUMN is_holdout INTEGER DEFAULT 0")
+            conn.commit()
+        except Exception:
+            pass
+
         # Check if entry exists
         row = conn.execute("SELECT id FROM memories WHERE id = ?", (entry_id,)).fetchone()
         if not row:
             conn.close()
             return False
+
+        if holdout:
+            # Counterfactual arm: flag the row so recall/ranking/utility exclude it.
+            # The tag stays in the note for human readability only.
+            conn.execute("UPDATE memories SET is_holdout = 1 WHERE id = ?", (entry_id,))
+            note = (note + " [holdout]") if note else "[holdout]"
         
         # Log the outcome as an event
         conn.execute(
