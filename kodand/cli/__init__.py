@@ -53,7 +53,7 @@ def main():
     prospective_p.add_argument("--repo", required=True, help="Repository path")
     prospective_p.add_argument("--file", help="File path being touched")
     prospective_p.add_argument("--symbol", help="Symbol being accessed")
-    prospective_p.add_argument("--command", help="Command being run")
+    prospective_p.add_argument("--cmd", dest="cmd", help="Command being run")
 
     # warm-start
     warmstart_p = subparsers.add_parser("warm-start", help="Show warm start context")
@@ -157,8 +157,8 @@ def main():
             context["file_path"] = args.file
         if args.symbol:
             context["symbol"] = args.symbol
-        if args.command:
-            context["command"] = args.command
+        if getattr(args, "cmd", None):
+            context["command"] = args.cmd
         results = engine.prospective_recall(context)
         if not results:
             print("No prospective memories found.")
