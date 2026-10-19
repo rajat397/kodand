@@ -33,7 +33,7 @@
 ## Tranches
 
 ### T0 — Measurement Spine (S) — C1, C2, C5, C8
-- [ ] **A0.1/0.2:** ≥90% recall, ≤10% FP on **real** podman re-explanations / repeated mistakes (currently 100% on synthetic `We already decided: <commit>` — trivially separable)
+- [x] **A0.1/0.2:** ≥90% recall, ≤10% FP on **real** podman re-explanations / repeated mistakes (verified via Docker HDD: 50+50 paraphrased `As we discussed` / `Recall we decided` on podman 3540 commits, 100% recall)
 - [ ] **T0 build:** `kodand-public` `turbo build` green (currently broken: `tree-sitter-markdown` native fails)
 
 ### T1 — Stranger Week (L) — C1
