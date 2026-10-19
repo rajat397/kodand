@@ -177,12 +177,13 @@ class Store:
         return affected > 0
 
 
-# Singleton instance
-_store: Optional[Store] = None
+# Per-repo cache (was singleton, broke multi-repo tests)
+_stores: dict = {}
 
 
 def get_store(repo_path: str = None) -> Store:
-    global _store
-    if _store is None:
-        _store = Store(repo_path)
-    return _store
+    import os
+    key = os.path.abspath(repo_path or os.getcwd())
+    if key not in _stores:
+        _stores[key] = Store(repo_path)
+    return _stores[key]
