@@ -58,8 +58,65 @@ class Store:
         CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
         CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind);
         CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
+        CREATE TABLE IF NOT EXISTS claims (
+            resource TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            claim_id TEXT NOT NULL,
+            claimed_at REAL NOT NULL,
+            expires_at REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS anchors (
+            entry_id INTEGER PRIMARY KEY,
+            file_path TEXT NOT NULL,
+            symbol TEXT DEFAULT '',
+            start_line INTEGER DEFAULT 0,
+            end_line INTEGER DEFAULT 0,
+            content_hash TEXT NOT NULL,
+            commit_hash TEXT DEFAULT '',
+            confidence TEXT DEFAULT 'high'
+        );
+        CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(content, locator, tokenize='porter');
         """)
         conn.commit()
+        # Migrations for pre-existing DBs (idempotent).
+        for ddl in [
+            "ALTER TABLE memories ADD COLUMN is_holdout INTEGER DEFAULT 0",
+            "ALTER TABLE memories ADD COLUMN enforcement_level TEXT DEFAULT 'context'",
+        ]:
+            try:
+                conn.execute(ddl)
+                conn.commit()
+            except Exception:
+                pass
+        # FTS triggers (idempotent via DROP+CREATE).
+        try:
+            conn.executescript("""
+            DROP TRIGGER IF EXISTS memories_fts_ai;
+            DROP TRIGGER IF EXISTS memories_fts_ad;
+            DROP TRIGGER IF EXISTS memories_fts_au;
+            CREATE TRIGGER memories_fts_ai AFTER INSERT ON memories BEGIN
+                INSERT INTO memories_fts(rowid, content, locator) VALUES (new.id, new.content, new.locator);
+            END;
+            CREATE TRIGGER memories_fts_ad AFTER DELETE ON memories BEGIN
+                DELETE FROM memories_fts WHERE rowid = old.id;
+            END;
+            CREATE TRIGGER memories_fts_au AFTER UPDATE ON memories BEGIN
+                DELETE FROM memories_fts WHERE rowid = old.id;
+                INSERT INTO memories_fts(rowid, content, locator) VALUES (new.id, new.content, new.locator);
+            END;
+            """)
+            conn.commit()
+            # Backfill FTS only if index is behind the table.
+            try:
+                n_mem = conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+                n_fts = conn.execute("SELECT COUNT(*) FROM memories_fts").fetchone()[0]
+                if n_fts < n_mem:
+                    conn.execute("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')")
+                    conn.commit()
+            except Exception:
+                pass
+        except Exception:
+            pass
         conn.close()
 
     def remember(self, content: str, surface: str = "text", locator: str = "",
@@ -89,6 +146,12 @@ class Store:
         )
         conn.commit()
         conn.close()
+        # Content-hash anchor (Fix 2): best-effort, never fails remember.
+        try:
+            from kodand.validation import anchor_entry
+            anchor_entry(self.repo_path, entry_id, locator)
+        except Exception:
+            pass
         return {"key": entry_id, "content": content, "scope": scope, "state": "active", "type": memory_type}
 
     def recall(self, query: str = "", k: int = 5, scope: str = None) -> List[dict]:
