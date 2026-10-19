@@ -22,7 +22,7 @@
   - [x] Poisoned-entry drill passes on podman
 
 - [x] **G4 — Scale on real repo**
-  - [ ] Monorepo run on `podman` 10k files (not 5-commit fixture), rename tolerance + caller invalidation live
+  - [x] Monorepo run on `podman` 10k files (not 5-commit fixture), rename tolerance + caller invalidation live
   - [x] Manifest watch flags **real** convention break before it bites
   - [x] Subagent enforcement: zero bypassable rewrites, report non-compilable honestly
 
