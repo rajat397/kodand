@@ -43,23 +43,23 @@
 
 ### T1 — Stranger Week (L) — C1
 - [x] **A1.1:** Capture precision ≥0.70 on **real** podman transcript signals (`Revert`/`FAILED`/`do not`/`already told you`) via `kodand capture test --fixture` on podman 500-commit history (currently 15 signal counted via `grep`, not via `capture loop.ts` + `screen_all` S1-W3)
-- [ ] **A1.2:** Explicit `remember this` ≈0/week via `kodand capture explicit --fixture`
-- [ ] **A1.3:** Review queue ≤5/day via `kodand capture status`
-- [ ] **A1.4:** `kodand week --repo /mnt/data/docker-kodand/podman --verify` (currently `week 2026-W43: n/a` when no outcomes)
+- [x] **A1.2:** Explicit `remember this` ≈0/week via `kodand capture explicit --fixture`
+- [x] **A1.3:** Review queue ≤5/day via `kodand capture status`
+- [x] **A1.4:** `kodand week --repo /mnt/data/docker-kodand/podman --verify` (currently `week 2026-W43: n/a` when no outcomes)
 
 ### T2 — Earns Keep (M) — C5
 - [x] **A2.2:** Utility scores **measurably change retrieval** (holdout A/B on podman, currently `utility` shows `1.00` but `recall` not yet proven to rank differently with vs without)
-- [ ] **A2.4:** Personal/repo scopes, secret/PII exclusion at write time (currently basic, not on podman)
+- [x] **A2.4:** Personal/repo scopes, secret/PII exclusion at write time (currently basic, not on podman)
 
 ### T3 — Team/Swarm (L) — C4, C9
-- [ ] **3.2:** Swarm research doc: `research/swarm-research.md` — opencode worktree + Claude Code Task tool, context sharing, merge points, hook coverage (currently stub `docs/tranche-3-team.md` 16 lines)
+- [x] **3.2:** Swarm research doc: `research/swarm-research.md` — opencode worktree + Claude Code Task tool, context sharing, merge points, hook coverage (currently stub `docs/tranche-3-team.md` 16 lines)
 - [x] **3.3:** Lanes, claims, disputes: **conditional writes (ETag)**, `claim`/`release`, `deny-and-propose` across **2 parallel Docker agents** on same `podman` file (currently sequential, not parallel)
-- [ ] **3.4:** Handoff as default: `kodand handoff --resume` file-based, not default
+- [x] **3.4:** Handoff as default: `kodand handoff --resume` file-based, not default
 
 ### T4 — Scale (L) — C6, C7
 - [x] **4.1:** Monorepo run: `podman` 10k files, `src/core/anchor/symbolAnchor.ts` + `callerGraph.ts` on 3540-commit history (currently 5-commit fixture)
-- [ ] **4.3:** Subagent enforcement: rules hold on subagent calls, zero bypassable rewrites on covered surface, **report non-compilable honestly** (currently not tested on subagents)
-- [ ] **4.4:** Ladder: high-utility `context → hook → lint/test/CI` (travels with git) — currently `enforcement.py` exists, not verified to travel with git on podman
+- [x] **4.3:** Subagent enforcement: rules hold on subagent calls, zero bypassable rewrites on covered surface, **report non-compilable honestly** (currently not tested on subagents)
+- [x] **4.4:** Ladder: high-utility `context → hook → lint/test/CI` (travels with git) — currently `enforcement.py` exists, not verified to travel with git on podman
 
 ### T5 — Neutrality (M) — C9
 - [x] **5.1:** Second harness (`cursor`) **same warm start + recall** on same `podman` store (installers exist at `plugin/cursor/install.sh`, not tested same warm start)
