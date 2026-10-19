@@ -1,0 +1,13 @@
+flowchart LR
+  Transcript[Session transcript<br/>Revert / FAILED / never / already told you] --> Classify[_classify]
+  Classify --> Evidential[_evidential]
+  Evidential --> Screen[screen_all S1-W3<br/>S1 owned/team scope<br/>S2 allow-injection<br/>S3 no injection marker<br/>W1 temporal W2 measurement W3 evidence]
+  Screen -->|high| Store[Store .kodand/memory.jsonl]
+  Screen -->|low| Queue[queue]
+  Store --> Anchor[anchor + manifest<br/>rename tolerance<br/>caller invalidation]
+  Store --> Outcome[outcome --holdout<br/>events.jsonl]
+  Outcome --> Utility[utility — Top3]
+  Store --> Recall[recall / warmstart / prospective]
+  Store --> Week[week — re-explanation + repeated-mistake<br/>count_for_week from logs]
+  style Screen fill:#fff3e0
+  style Week fill:#e8f5e9,stroke:#2e7d32

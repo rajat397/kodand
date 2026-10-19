@@ -1,0 +1,1 @@
+T0 is the spine (no synthetic week). T1-T5 each proven on real podman HDD via Docker. G1 is time-gated: week2 < week1 on same repo, same humans, 2026-10-26.

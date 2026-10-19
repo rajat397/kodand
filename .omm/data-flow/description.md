@@ -1,0 +1,1 @@
+Session → capture → store → recall → measure. T0 spine is ground truth; every derived field must flow from logs.

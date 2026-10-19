@@ -1,0 +1,30 @@
+graph TB
+  subgraph Agent["Coding agent (Claude Code / opencode / Cursor)"]
+    CTX[Context window]
+    LOOP[loop.ts capture — T_CORRECTION / T_REVERT / T_TESTFAIL / T_CONSTRAINT, ceiling 5/day, screen_all S1-W3]
+  end
+  subgraph Kodand["kodand (pip, 23 commands)"]
+    TICK[capture-tick]
+    WEEK[measure/week — re-explanation + repeated-mistake + events_log + cost, from logs alone]
+    RECALL[recall / warmstart / prospective — same store, same injection]
+    TEAM[swarm / team-promote / handoff — deny-and-propose, ETag]
+    SCALE[anchor / manifest / enforce — rename tolerance + deps ladder]
+    TRUST[trust — W1-W3 verified at write]
+  end
+  subgraph Store[".kodand (JSONL, owns)"]
+    MEM[memory.jsonl]
+    EVENTS[events.jsonl]
+  end
+  subgraph Stranger["podman HDD stranger (Docker kodand-stranger-test)"]
+    POD[podman 3540 commits, 10k files, Go]
+    STR[5/5 tests PASS, week 2026-W43: 0,0,0.0]
+  end
+  CTX --> LOOP --> TICK --> MEM
+  MEM --> RECALL --> CTX
+  MEM --> WEEK
+  MEM --> TEAM
+  MEM --> SCALE
+  MEM --> TRUST
+  POD --> STR --> WEEK
+  classDef gate fill:#e8f5e9,stroke:#2e7d32
+  class WEEK,STR gate

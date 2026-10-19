@@ -1,0 +1,1 @@
+Kodand — memory plane beneath coding-agent context windows (Claude Code / opencode / Cursor). Python `pip install kodand`, 23 commands, Docker `podman` HDD 3540 commits verified. G1-ready, week2 gated 2026-10-26.
