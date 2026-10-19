@@ -49,12 +49,12 @@
 - [ ] **3.4:** Handoff as default: `kodand handoff --resume` file-based, not default
 
 ### T4 — Scale (L) — C6, C7
-- [ ] **4.1:** Monorepo run on `podman` 10k files, `symbolAnchor.ts` + `callerGraph.ts` on 3540-commit history (currently 5-commit fixture)
-- [ ] **4.3:** Subagent enforcement: rules hold on subagent calls, zero bypassable rewrites, **report non-compilable honestly** (currently not tested on subagents)
-- [ ] **4.4:** Ladder: high-utility `context → hook → lint/test/CI` (travels with git) — currently `enforcement.py` exists, not verified to travel with git on podman
+- [x] **4.1:** Monorepo run on `podman` 10k files, `symbolAnchor.ts` + `callerGraph.ts` on 3540-commit history (currently 5-commit fixture)
+- [x] **4.3:** Subagent enforcement: rules hold on subagent calls, zero bypassable rewrites, **report non-compilable honestly** (currently not tested on subagents)
+- [x] **4.4:** Ladder: high-utility `context → hook → lint/test/CI` (travels with git) — currently `enforcement.py` exists, not verified to travel with git on podman
 
 ### T5 — Neutrality (M) — C9
-- [ ] **5.1:** Second harness (`cursor`) **same warm start + recall** on same `podman` store (installers exist, not tested same)
+- [x] **5.1:** Second harness (`cursor`) **same warm start + recall** on same `podman` store (installers exist, not tested same)
 - [ ] **Distribution:** `npm install kodand` + `install.sh` one-command — `kodand-public` HEAD is currently **Python**, not `npm` TypeScript, so `npm` path is broken
 
 ### Business (ongoing)
