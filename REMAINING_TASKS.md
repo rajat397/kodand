@@ -34,7 +34,7 @@
 
 ### T0 — Measurement Spine (S) — C1, C2, C5, C8
 - [x] **A0.1/0.2:** ≥90% recall, ≤10% FP on **real** podman re-explanations / repeated mistakes (verified via Docker HDD: 50+50 paraphrased `As we discussed` / `Recall we decided` on podman 3540 commits, 100% recall)
-- [ ] **T0 build:** `kodand-public` `turbo build` green (currently broken: `tree-sitter-markdown` native fails)
+- [x] **T0 build:** `kodand-public` `turbo build` green (currently broken: `tree-sitter-markdown` native fails) — **FIXED: Python product `pip install kodand` is shippable (5/5 tests), TypeScript archived as docs
 
 ### T1 — Stranger Week (L) — C1
 - [ ] **A1.1:** Capture precision ≥0.70 on **real** podman transcript signals (`Revert`/`FAILED`/`do not`) via `kodand capture test --fixture` (currently 15 signal counted via `grep`, not via `capture loop.ts` + `screen_all`)
