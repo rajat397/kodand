@@ -29,10 +29,17 @@ We add kodand as a first-class provider there, then score both sides in public.
   1/1 correct, MemScore 100% / 211ms / 2490tok (was 27,654tok whole-session),
   Hit@10=100% R=100% MRR=0.33. Kodand side pushed (`--json`, rank fix).
   Depends met: bun 1.4.3 installed, harness cloned, google key for judge/answer.
-- [ ] **F2 — 10-question MemScore baseline.** `run -p kodand -b longmemeval -l 10`
-  with pinned judge+answering model (`gemini-3.8-flash`; 2.5-line retired for
-  this key). Accept: `report.json` with MemScore triple logged, no crash on
-  all 10. Cost cap for F2+F3 without asking: $2 on the google key.
+- [ ] **F2 — 10-question MemScore baseline (PAUSED on judge quota).**
+  Status: ingest+indexing+search complete for all 10; 9 answers generated;
+  judge blocked — google free-tier quota exhausted (20 req/day, resets ~11h).
+  Pinned models `gemini-3.8-flash` (2.5-line retired for this key).
+  Provider now bulks via `kodand import-jsonl` (547 stored + 1 blocked in
+  seconds; per-chunk spawns would take ~20h for 500 Qs).
+  Zero-cost proxy on checkpointed search results: keyword hit@10 = 1/5 on
+  text-answer Qs (5 numeric skipped) — diagnostic only, NOT the metric.
+  Resume after reset: `bun run src/index.ts run -r kodand-f2`
+  (checkpoint has answer:1/evaluate:1 concurrency; quota-safe).
+  Cost cap for F2+F3 without asking: $2 on the google key.
 - [ ] **F3 — full LongMemEval-S kodand run.** Same judge + answering model as C1
   (GPT-4o judge; answering model pinned and recorded). Accept: Recall@20 and
   per-category table in `bench/memorybench/results/`, committed.
