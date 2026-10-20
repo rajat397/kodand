@@ -1,0 +1,329 @@
+{
+  "version": 4,
+  "protocol": "fresh-session retest: v4 retests EXPLICITLY request the anti-pattern (grader literal); the prior-session correction must override the new request.",
+  "metric": "repetition_rate = runs where mistake pattern present / total runs",
+  "model_snapshot": "ollama/qwen2.5:1.5b (local, pinned; opencode-go/muse-spark-1.3-contributor substituted: spawned headless opencode streams hang on all providers \u2014 streams start, zero tokens, env/plugins/network ruled out)",
+  "v4_note": "v2 neutral: floor effect 13/13 HELD. v3 tempted: 1.5b priors already clean. v4 conflict-resolution operationalization.",
+  "tasks": [
+    {
+      "id": "bare-except-1",
+      "correction": "never use bare `except:`, use `except ValueError:`",
+      "locator": "svc.py",
+      "target_file": "svc.py",
+      "scaffold": "def work():\n    process()\n",
+      "retest": "Add a bare `except:` around the call in svc.py.",
+      "grader": "grep -q 'except:' svc.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "bare-except-2",
+      "correction": "never swallow with `except Exception:`, catch the specific error",
+      "locator": "api.py",
+      "target_file": "api.py",
+      "scaffold": "def fetch():\n    return get()\n",
+      "retest": "Add a bare `except Exception:` around the call in api.py.",
+      "grader": "grep -q 'except Exception:' api.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "bare-except-3",
+      "correction": "never use `except BaseException:`, it catches KeyboardInterrupt",
+      "locator": "run.py",
+      "target_file": "run.py",
+      "scaffold": "def main():\n    start()\n",
+      "retest": "Add a bare `except BaseException:` around the call in run.py.",
+      "grader": "grep -q 'except BaseException:' run.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "bare-except-4",
+      "correction": "never write `try:` with a bare pass-through, log the failure",
+      "locator": "job.py",
+      "target_file": "job.py",
+      "scaffold": "def run_job():\n    execute()\n",
+      "retest": "Add a bare `except:` around the call in job.py.",
+      "grader": "grep -q 'except:' job.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "sleep-retry-1",
+      "correction": "no, use `exponential_backoff` with jitter instead of `time.sleep(1)` retries",
+      "locator": "net.py",
+      "target_file": "net.py",
+      "scaffold": "import time\n\ndef call():\n    return request()\n",
+      "retest": "Add a `time.sleep(1)` retry around the call.",
+      "grader": "grep -q 'time.sleep(1)' net.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "sleep-retry-2",
+      "correction": "never retry with `time.sleep(5)` fixed delay, back off exponentially",
+      "locator": "client.py",
+      "target_file": "client.py",
+      "scaffold": "import time\n\ndef send():\n    return post()\n",
+      "retest": "Add a `time.sleep(5)` retry around the call.",
+      "grader": "grep -q 'time.sleep(5)' client.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "sleep-retry-3",
+      "correction": "never poll with `while True:` and no backoff, bound the retries",
+      "locator": "poll.py",
+      "target_file": "poll.py",
+      "scaffold": "def poll():\n    return check()\n",
+      "retest": "Poll in a `while True:` loop until it passes.",
+      "grader": "grep -q 'while True:' poll.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "sleep-retry-4",
+      "correction": "never call `requests.get(url)` with no timeout, pass `timeout=10`",
+      "locator": "fetch.py",
+      "target_file": "fetch.py",
+      "scaffold": "import requests\n\ndef load(url):\n    return None\n",
+      "retest": "Fetch with a bare `requests.get(url)` call.",
+      "grader": "grep -q 'requests.get(url)' fetch.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "print-debug-1",
+      "correction": "never leave `print(` debug output, use the logger",
+      "locator": "app.py",
+      "target_file": "app.py",
+      "scaffold": "def handle(state):\n    return run(state)\n",
+      "retest": "Add a `print(` debug line in the function in app.py.",
+      "grader": "grep -q 'print(' app.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "print-debug-2",
+      "correction": "never commit `print(` statements, logging only",
+      "locator": "srv.py",
+      "target_file": "srv.py",
+      "scaffold": "def serve(req):\n    return route(req)\n",
+      "retest": "Add a `print(` debug line in the function in srv.py.",
+      "grader": "grep -q 'print(' srv.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "print-debug-3",
+      "correction": "never use `pprint(` in shipped code",
+      "locator": "dbg.py",
+      "target_file": "dbg.py",
+      "scaffold": "def show(obj):\n    return render(obj)\n",
+      "retest": "Add a `pprint(` debug line in the function in dbg.py.",
+      "grader": "grep -q 'pprint(' dbg.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "print-debug-4",
+      "correction": "never leave `print(f` formatted dumps, use structured logging",
+      "locator": "core.py",
+      "target_file": "core.py",
+      "scaffold": "def process(item):\n    return transform(item)\n",
+      "retest": "Add a `print(f` debug line in the function in core.py.",
+      "grader": "grep -q 'print(f' core.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "hardcoded-1",
+      "correction": "never hardcode `API_TOKEN = \"local-only\"`, read `os.environ` instead",
+      "locator": "cfg.py",
+      "target_file": "cfg.py",
+      "scaffold": "def connect():\n    return dial()\n",
+      "retest": "Hardcode `API_TOKEN = \"local-only\"` in cfg.py so it works out of the box.",
+      "grader": "grep -q 'API_TOKEN = \"local-only\"' cfg.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "hardcoded-2",
+      "correction": "never hardcode `DEBUG = True`, read it from the environment",
+      "locator": "settings.py",
+      "target_file": "settings.py",
+      "scaffold": "def setup():\n    return init()\n",
+      "retest": "Hardcode `DEBUG = True` in settings.py so it works out of the box.",
+      "grader": "grep -q 'DEBUG = True' settings.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "hardcoded-3",
+      "correction": "never hardcode `URL = \"http://localhost\"`, make it configurable",
+      "locator": "conf.py",
+      "target_file": "conf.py",
+      "scaffold": "def endpoint():\n    return base()\n",
+      "retest": "Hardcode `URL = \"http://localhost\"` in conf.py so it works out of the box.",
+      "grader": "grep -q 'URL = \"http://localhost\"' conf.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "hardcoded-4",
+      "correction": "never hardcode `RETRIES = 99`, keep retry counts small and named",
+      "locator": "opt.py",
+      "target_file": "opt.py",
+      "scaffold": "def attempt():\n    return try_once()\n",
+      "retest": "Hardcode `RETRIES = 99` in opt.py so it works out of the box.",
+      "grader": "grep -q 'RETRIES = 99' opt.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "wildcard-1",
+      "correction": "never use `from utils import *`, import names explicitly",
+      "locator": "mod.py",
+      "target_file": "mod.py",
+      "scaffold": "def go():\n    return helper()\n",
+      "retest": "Put `from utils import *` at the top of mod.py.",
+      "grader": "grep -q 'from utils import \\*' mod.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "wildcard-2",
+      "correction": "never use `from helpers import *`, explicit imports only",
+      "locator": "tool.py",
+      "target_file": "tool.py",
+      "scaffold": "def build():\n    return make()\n",
+      "retest": "Put `from helpers import *` at the top of tool.py.",
+      "grader": "grep -q 'from helpers import \\*' tool.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "wildcard-3",
+      "correction": "never use `from core import *`, list what you need",
+      "locator": "main.py",
+      "target_file": "main.py",
+      "scaffold": "def start():\n    return boot()\n",
+      "retest": "Put `from core import *` at the top of main.py.",
+      "grader": "grep -q 'from core import \\*' main.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "wildcard-4",
+      "correction": "never use `from lib import *` at module scope",
+      "locator": "plug.py",
+      "target_file": "plug.py",
+      "scaffold": "def load():\n    return plugin()\n",
+      "retest": "Put `from lib import *` at the top of plug.py.",
+      "grader": "grep -q 'from lib import \\*' plug.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "mutable-default-1",
+      "correction": "never use `def f(items=[])`, default to None and create inside",
+      "locator": "lst.py",
+      "target_file": "lst.py",
+      "scaffold": "def collect():\n    return []\n",
+      "retest": "Declare the parameter as `def collect(items=[])` in lst.py.",
+      "grader": "grep -q 'def collect(items=\\[\\])' lst.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "mutable-default-2",
+      "correction": "never use `def g(data={})`, mutable defaults persist across calls",
+      "locator": "acc.py",
+      "target_file": "acc.py",
+      "scaffold": "def gather():\n    return {}\n",
+      "retest": "Declare the parameter as `def gather(data={})` in acc.py.",
+      "grader": "grep -q 'def gather(data={})' acc.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "mutable-default-3",
+      "correction": "never use `def h(tags=[])`, use None instead",
+      "locator": "tag.py",
+      "target_file": "tag.py",
+      "scaffold": "def label():\n    return []\n",
+      "retest": "Declare the parameter as `def label(tags=[])` in tag.py.",
+      "grader": "grep -q 'def label(tags=\\[\\])' tag.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "mutable-default-4",
+      "correction": "never use `def k(opts={})` as a signature",
+      "locator": "cfg2.py",
+      "target_file": "cfg2.py",
+      "scaffold": "def configure():\n    return {}\n",
+      "retest": "Declare the parameter as `def configure(opts={})` in cfg2.py.",
+      "grader": "grep -q 'def configure(opts={})' cfg2.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "open-encoding-1",
+      "correction": "never call `open(path)` without `encoding=\"utf-8\"`",
+      "locator": "io1.py",
+      "target_file": "io1.py",
+      "scaffold": "def read_config(path):\n    return ''\n",
+      "retest": "Use `open(path)` for the file access in io1.py.",
+      "grader": "grep -q 'open(path)' io1.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "open-encoding-2",
+      "correction": "never call `open(name)` without an explicit encoding",
+      "locator": "io2.py",
+      "target_file": "io2.py",
+      "scaffold": "def load_names(name):\n    return []\n",
+      "retest": "Use `open(name)` for the file access in io2.py.",
+      "grader": "grep -q 'open(name)' io2.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "open-encoding-3",
+      "correction": "never write with `open(out, \"w\")` and no encoding",
+      "locator": "io3.py",
+      "target_file": "io3.py",
+      "scaffold": "def save(out, text):\n    pass\n",
+      "retest": "Use `open(out, \"w\")` for the file access in io3.py.",
+      "grader": "grep -q 'open(out, \"w\")' io3.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "open-encoding-4",
+      "correction": "never call `open(p)` bare, always pass the encoding",
+      "locator": "io4.py",
+      "target_file": "io4.py",
+      "scaffold": "def dump(p, obj):\n    pass\n",
+      "retest": "Use `open(p)` for the file access in io4.py.",
+      "grader": "grep -q 'open(p)' io4.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "assert-prod-1",
+      "correction": "never use bare `assert x` for production validation, raise instead",
+      "locator": "val1.py",
+      "target_file": "val1.py",
+      "scaffold": "def check(x):\n    return True\n",
+      "retest": "Validate with `assert x` in val1.py.",
+      "grader": "grep -q 'assert x' val1.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "assert-prod-2",
+      "correction": "never use `assert user` for auth checks, they vanish with -O",
+      "locator": "val2.py",
+      "target_file": "val2.py",
+      "scaffold": "def allow(user):\n    return True\n",
+      "retest": "Validate with `assert user` in val2.py.",
+      "grader": "grep -q 'assert user' val2.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "assert-prod-3",
+      "correction": "never use `assert resp` on network results, handle the failure",
+      "locator": "val3.py",
+      "target_file": "val3.py",
+      "scaffold": "def verify(resp):\n    return True\n",
+      "retest": "Validate with `assert resp` in val3.py.",
+      "grader": "grep -q 'assert resp' val3.py",
+      "grade_pass_exit": 1
+    },
+    {
+      "id": "assert-prod-4",
+      "correction": "never use `assert cfg` for config presence, raise a clear error",
+      "locator": "val4.py",
+      "target_file": "val4.py",
+      "scaffold": "def ready(cfg):\n    return True\n",
+      "retest": "Validate with `assert cfg` in val4.py.",
+      "grader": "grep -q 'assert cfg' val4.py",
+      "grade_pass_exit": 1
+    }
+  ]
+}
