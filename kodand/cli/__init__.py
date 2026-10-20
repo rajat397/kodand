@@ -172,6 +172,13 @@ def main():
     hook_p.add_argument("--tool", required=True, help="Tool name")
     hook_p.add_argument("--args-json", default="{}", help="Tool args as JSON")
 
+    # bulk import: one process, one file, N memories (benchmark ingest path).
+    # JSONL rows: {"title":..,"content":..,"locator":..,"scope"?}. Secret-blocked
+    # rows are skipped and counted (exit 0; summary JSON tells the story).
+    import_p = subparsers.add_parser("import-jsonl", help="Bulk import memories from a JSONL file")
+    import_p.add_argument("--repo", required=True, help="Repository path")
+    import_p.add_argument("--file", required=True, help="JSONL file path")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -347,6 +354,35 @@ def main():
         else:
             for h in hits:
                 print(f"[{h['id']}] {h.get('content','')[:120]} -- {h.get('locator','')}")
+
+    elif args.command == "import-jsonl":
+        from kodand.store import get_store as _get_store
+        store = _get_store(args.repo)
+        stored, blocked, errors = 0, 0, 0
+        with open(args.file, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except Exception:
+                    errors += 1
+                    continue
+                try:
+                    store.remember(
+                        content=row.get("content", ""),
+                        surface="text",
+                        locator=row.get("locator", ""),
+                        scope=row.get("scope", "repo"),
+                        session_id="import-jsonl",
+                    )
+                    stored += 1
+                except ValueError:
+                    blocked += 1  # secret/PII filter: skip, count, continue
+                except Exception:
+                    errors += 1
+        print(json.dumps({"stored": stored, "blocked": blocked, "errors": errors}))
 
     elif args.command == "anchor":
         hits = get_anchored(args.repo, args.file)
