@@ -57,3 +57,28 @@
 ## Reproduce
 `python3 runner/agent_loop.py --tasks 32 --runs 3 --tag v4 --model <ollama-id> --resume`
 then `python3 score.py results_agent_v4.jsonl`. Raw rows: `results_agent_v4.jsonl`.
+
+## Addendum — forcing function on the two failing categories (2026-10-20)
+- Question: memory-only fails universally on wildcard (12/12 all arms) and barely
+  helps on hardcoded. Does a write guard (`hooks.after_write` → deny + BLOCKED +
+  correction) close them?
+- Focused matrix: wildcard-1..4 + hardcoded-1..4 × 5 arms × 3 runs = 120 runs,
+  new arm `kodand-force` (enforce + write guard). Tag `force`.
+
+| arm (n=24) | rep | rate [95% CI] | completed |
+|---|---|---|---|
+| no-memory | 16 | 0.667 [0.467, 0.820] | 16 |
+| agents-md | 19 | 0.792 [0.595, 0.908] | 19 |
+| kodand-inject | 21 | 0.875 [0.690, 0.957] | 24 |
+| kodand-enforce | 21 | 0.875 [0.690, 0.957] | 24 |
+| **kodand-force** | **0** | **0.000 [0.000, 0.138]** | 2 clean, 22 abstained |
+
+- Guard fired in 21/24 force transcripts. Memory without the guard repeats at 0.875
+  on these categories — identical to no guard at all. With the guard: zero repetition.
+- Cost, reported: the 1.5b model completes cleanly only 2/24 after being blocked
+  (abstains instead). Forcing buys zero repetition at the price of completion on a
+  weak model; whether stronger models convert blocks into clean completions is the
+  open question for the frontier re-run.
+- Reproduce: `python3 runner/agent_loop.py --only wildcard-1 wildcard-2 wildcard-3
+  wildcard-4 hardcoded-1 hardcoded-2 hardcoded-3 hardcoded-4 --runs 3 --tag force
+  --model <ollama-id> --resume`; rows: `results_agent_force.jsonl`.
