@@ -211,6 +211,7 @@ def main():
             print(json.dumps([
                 {"id": e.get("id"), "content": e.get("content", ""),
                  "locator": e.get("locator", ""), "scope": e.get("scope", "repo"),
+                 "title": e.get("title", ""),
                  "created_at": e.get("created_at", 0)}
                 for e in results
             ]))
