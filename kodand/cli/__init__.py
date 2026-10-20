@@ -4,6 +4,7 @@ kodand.cli - Command-line interface for kodand
 
 import sys
 import argparse
+import json
 import os
 from kodand.store import get_store
 from kodand.capture import run_capture_tick, CaptureLoop
@@ -54,6 +55,7 @@ def main():
     recall_p.add_argument("--repo", required=True, help="Repository path")
     recall_p.add_argument("--query", help="Search query")
     recall_p.add_argument("--limit", type=int, default=10, help="Maximum results")
+    recall_p.add_argument("--json", action="store_true", help="Machine-readable JSON output")
 
     # prospective recall
     prospective_p = subparsers.add_parser("prospective", help="Prospective recall based on context")
@@ -205,7 +207,14 @@ def main():
     elif args.command == "recall":
         engine = create_recall_engine(args.repo)
         results = engine.recall(query=args.query or "", k=args.limit)
-        if not results:
+        if getattr(args, "json", False):
+            print(json.dumps([
+                {"id": e.get("id"), "content": e.get("content", ""),
+                 "locator": e.get("locator", ""), "scope": e.get("scope", "repo"),
+                 "created_at": e.get("created_at", 0)}
+                for e in results
+            ]))
+        elif not results:
             print("No memories found.")
         else:
             for entry in results:
@@ -327,7 +336,6 @@ def main():
             print(f"❌ Entry {args.id} not found.")
 
     elif args.command == "hook":
-        import json
         try:
             tool_args = json.loads(args.args_json)
         except Exception:
