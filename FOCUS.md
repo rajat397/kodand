@@ -29,21 +29,18 @@ We add kodand as a first-class provider there, then score both sides in public.
   1/1 correct, MemScore 100% / 211ms / 2490tok (was 27,654tok whole-session),
   Hit@10=100% R=100% MRR=0.33. Kodand side pushed (`--json`, rank fix).
   Depends met: bun 1.4.3 installed, harness cloned, google key for judge/answer.
-- [ ] **F2 — 10-question MemScore baseline (7/10 judged; quota wall).**
-  Status: ingest+indexing+search complete for all 10; all 10 answers generated;
-  judge done for 7 (new key also free-tier: 20 req/day, resets ~07:00 UTC).
-  5 correct / 2 incorrect so far; both incorrects are honest "I don't know"
-  abstentions, zero hallucinations. Blocked-chunk audit cleared the filter:
-  the one blocked turn (sample key in marketing copy) was irrelevant to its
-  question. Misses look like multi-session aggregation gaps, not filter damage.
-  Pinned models `gemini-3.8-flash` (2.5-line retired for this key).
-  Provider now bulks via `kodand import-jsonl` (547 stored + 1 blocked in
-  seconds; per-chunk spawns would take ~20h for 500 Qs).
-  Harness pacing patched locally for quota (75s backoff x8 in evaluate phase;
-  CLI flags don't propagate on resume — checkpoint edit required).
-  Resume after reset: `bun run src/index.ts run -r kodand-f2`
-  (checkpoint has answer:1/evaluate:1 concurrency; quota-safe).
-  Cost cap for F2+F3 without asking: $2 on the google key.
+- [x] **F2 — 10-question MemScore baseline: DONE 2026-10-20.**
+  `kodand-f2`: **6/10 accuracy, MemScore 60% / 453ms / 3078tok** (judge+answer
+  `gemini-3.8-flash`, second owner-supplied key beat the quota wall).
+  Retrieval: Hit@10=100% R=100% MRR=0.71 P=28%. Per type: knowledge-update 1/1,
+  single-session-user 1/1, multi-session 1/2, temporal-reasoning 3/6.
+  All 4 misses are "I don't know" abstentions (zero hallucinations);
+  blocked-chunk audit cleared the filter (blocked turn was irrelevant copy).
+  Miss pattern: multi-session aggregation — evidence spread across sessions
+  doesn't fit top-10 chunks. That is the named F3 tuning target.
+  Harness pacing patched locally for quota (75s backoff x8 in evaluate;
+  CLI concurrency flags don't propagate on resume — checkpoint edit required).
+  Cost cap for F3 without asking: $2 on the google key.
 - [ ] **F3 — full LongMemEval-S kodand run.** Same judge + answering model as C1
   (GPT-4o judge; answering model pinned and recorded). Accept: Recall@20 and
   per-category table in `bench/memorybench/results/`, committed.
