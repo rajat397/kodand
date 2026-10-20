@@ -246,6 +246,50 @@ class EnforcementLadder:
 
         return True
 
+    def enforced_memories(self) -> List[Dict]:
+        """All memories at blocking levels (hook/lint/test/ci), with tokens."""
+        conn = self.store._get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT id, content, locator, enforcement_level FROM memories "
+                "WHERE state = 'active' AND COALESCE(is_holdout, 0) = 0 "
+                "AND enforcement_level IN ('hook', 'lint', 'test', 'ci')"
+            ).fetchall()
+        except Exception:
+            return []
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        out = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["token"] = self._forbidden_token(d.get("content", ""), d.get("locator", ""))
+            except Exception:
+                d["token"] = ""
+            if d["token"]:
+                out.append(d)
+        return out
+
+    def check_write_content(self, content: str) -> List[Dict]:
+        """Forcing-function core: which enforced memories does this content violate?
+
+        Pure read-only scan, never raises (fail-open -> []). The caller decides
+        whether to block (harness hook) or warn.
+        """
+        try:
+            hits = []
+            for m in self.enforced_memories():
+                if m["token"] and m["token"] in (content or ""):
+                    hits.append({"id": m["id"], "level": m["enforcement_level"],
+                                 "token": m["token"],
+                                 "correction": m.get("content", "")[:200]})
+            return hits
+        except Exception:
+            return []
+
     def demote(self, entry_id: int, level: str = None) -> bool:
         """Remove enforcement artifacts (reversible). Returns True when clean."""
         targets: List[str] = []

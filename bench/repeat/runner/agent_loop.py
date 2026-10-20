@@ -31,7 +31,7 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/chat")
 MODEL_SNAPSHOT = os.environ.get("MODEL_SNAPSHOT", "qwen2.5:1.5b")
 MAX_STEPS = 8
 
-ARMS = ["no-memory", "agents-md", "kodand-inject", "kodand-enforce"]
+ARMS = ["no-memory", "agents-md", "kodand-inject", "kodand-enforce", "kodand-force"]
 
 TOOLS = [
     {"type": "function", "function": {
@@ -87,26 +87,41 @@ def apply_arm(repo, arm, task):
         with open(os.path.join(repo, "AGENTS.md"), "w") as f:
             f.write(f"# Agent guidance (repo policy)\n\n{task['correction']}\n")
         return "Follow AGENTS.md in the repo.", ""
-    if arm in ("kodand-inject", "kodand-enforce"):
+    if arm in ("kodand-inject", "kodand-enforce", "kodand-force"):
         from kodand.store import get_store
         s = get_store(repo)
         e = s.remember(content=task["correction"], surface="text",
                        locator=task["locator"], scope="repo")
         extra = ""
-        if arm == "kodand-enforce":
+        if arm in ("kodand-enforce", "kodand-force"):
             from kodand.enforcement import create_enforcement_ladder
             lad = create_enforcement_ladder(repo)
             ok = lad.promote(e["key"], "test")
             extra = (" The repo has kodand enforcement tests (tests/test_kodand_*.py)"
                      " encoding past corrections. Use run_grader before finishing"
                      " and fix any failure.")
+            if arm == "kodand-force":
+                extra += (" Writes that reintroduce a past mistake are BLOCKED by a"
+                          " write guard — if a write is blocked, do it the corrected way.")
             return (f"Relevant memories from past sessions:\n- {task['correction']}" + extra,
                     f"enforce artifact written={ok}")
         return f"Relevant memories from past sessions:\n- {task['correction']}", ""
     raise AssertionError(arm)
 
 
-def do_tool(repo, task, name, args):
+def do_tool(repo, task, name, args, force_guard=False):
+    if name == "write_file" and force_guard:
+        try:
+            from kodand.hooks import after_write
+            gate = after_write(args.get("path", ""),
+                               args.get("content", ""), repo)
+            if not gate.get("allowed", True):
+                v = gate["violations"][0]
+                return (f"BLOCKED by kodand memory#{v['id']} ({v['level']}): writing this "
+                        f"would repeat a corrected mistake ({v['token']!r}). "
+                        f"Correction: {v['correction']}. Write it the corrected way instead.")
+        except Exception:
+            pass
     if name == "list_files":
         out = []
         for root, dirs, files in os.walk(repo):
@@ -140,8 +155,8 @@ def do_tool(repo, task, name, args):
     return f"ERROR: unknown tool {name}"
 
 
-def agent_run(repo, task, arm_ctx, model):
-    """Tool loop. Returns (transcript, steps, duration_s)."""
+def agent_run(repo, task, arm_ctx, model, force_guard=False):
+    """Tool loop. force_guard=True wires the kodand after_write gate into writes."""
     transcript = []
     system = ("You are a coding agent working in a small repo. Complete the user's "
               "task with minimal changes using the provided tools. "
@@ -191,7 +206,7 @@ def agent_run(repo, task, arm_ctx, model):
                     args = {}
                 if not isinstance(args, dict):
                     args = {}
-                out = do_tool(repo, task, name, args)
+                out = do_tool(repo, task, name, args, force_guard=force_guard)
                 transcript.append({"turn": f"tool:{name}", "args": str(args)[:200],
                                    "out": out[:300]})
                 messages.append({"role": "tool", "content": out})
@@ -209,7 +224,8 @@ def run_once(arm, task, run_idx, model, results_path, transcripts_dir):
         with open(os.path.join(repo, task["target_file"]), "w") as f:
             f.write(task["scaffold"])
         arm_ctx, note = apply_arm(repo, arm, task)
-        transcript, steps, dur = agent_run(repo, task, arm_ctx, model)
+        transcript, steps, dur = agent_run(repo, task, arm_ctx, model,
+                                           force_guard=(arm == "kodand-force"))
         _, absent = run_grader(repo, task)
         with open(os.path.join(repo, task["target_file"])) as f:
             final = f.read()
@@ -250,6 +266,8 @@ def main():
     ap.add_argument("--arms", nargs="*", default=ARMS)
     ap.add_argument("--model", default=MODEL_SNAPSHOT)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--only", nargs="*", default=[],
+                    help="restrict to these task ids")
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--verify5", action="store_true")
     ap.add_argument("--tag", default="",
@@ -264,6 +282,8 @@ def main():
     with open(TASKS_PATH) as f:
         spec = json.load(f)
     tasks = spec["tasks"][:args.tasks]
+    if args.only:
+        tasks = [t for t in tasks if t["id"] in args.only]
     done = load_done(results_path) if args.resume else set()
 
     combos = []

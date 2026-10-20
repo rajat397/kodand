@@ -12,6 +12,34 @@ FILE_TOOLS = {"read", "write", "edit", "apply_patch", "view"}
 CMD_TOOLS = {"bash", "run_command", "exec"}
 DEP_TOOLS = {"add_dependency", "install", "npm_install", "pip_install"}
 
+def after_write(file_path: str, content: str, repo_path=None):
+    """Forcing-function hook — call AFTER a write with the new content.
+
+    Returns {"allowed": bool, "violations": [...]}. Unlike before_tool (which
+    only injects context), this DENIES writes that reintroduce enforced
+    mistakes. Never raises: on error returns allowed=True (fail-open) and logs.
+    """
+    try:
+        from kodand.enforcement import create_enforcement_ladder
+        lad = create_enforcement_ladder(repo_path)
+        violations = lad.check_write_content(content or "")
+        if violations:
+            try:
+                for v in violations:
+                    log_event(repo_path, "blocked", v["id"], "hook.after_write",
+                              json.dumps({"file": file_path, "token": v["token"]}))
+            except Exception:
+                pass
+            return {"allowed": False, "violations": violations}
+        return {"allowed": True, "violations": []}
+    except Exception as e:
+        try:
+            log_event(repo_path, "held", None, "hook.after_write:error", str(e)[:200])
+        except Exception:
+            pass
+        return {"allowed": True, "violations": []}
+
+
 def before_tool(tool: str, args: dict, repo_path=None):
     """Hook entry — call before tool execution. Returns list of entries to inject or [].
     Never raises, never blocks — amplify, never restrict.
