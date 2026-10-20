@@ -29,14 +29,18 @@ We add kodand as a first-class provider there, then score both sides in public.
   1/1 correct, MemScore 100% / 211ms / 2490tok (was 27,654tok whole-session),
   Hit@10=100% R=100% MRR=0.33. Kodand side pushed (`--json`, rank fix).
   Depends met: bun 1.4.3 installed, harness cloned, google key for judge/answer.
-- [ ] **F2 — 10-question MemScore baseline (PAUSED on judge quota).**
-  Status: ingest+indexing+search complete for all 10; 9 answers generated;
-  judge blocked — google free-tier quota exhausted (20 req/day, resets ~11h).
+- [ ] **F2 — 10-question MemScore baseline (7/10 judged; quota wall).**
+  Status: ingest+indexing+search complete for all 10; all 10 answers generated;
+  judge done for 7 (new key also free-tier: 20 req/day, resets ~07:00 UTC).
+  5 correct / 2 incorrect so far; both incorrects are honest "I don't know"
+  abstentions, zero hallucinations. Blocked-chunk audit cleared the filter:
+  the one blocked turn (sample key in marketing copy) was irrelevant to its
+  question. Misses look like multi-session aggregation gaps, not filter damage.
   Pinned models `gemini-3.8-flash` (2.5-line retired for this key).
   Provider now bulks via `kodand import-jsonl` (547 stored + 1 blocked in
   seconds; per-chunk spawns would take ~20h for 500 Qs).
-  Zero-cost proxy on checkpointed search results: keyword hit@10 = 1/5 on
-  text-answer Qs (5 numeric skipped) — diagnostic only, NOT the metric.
+  Harness pacing patched locally for quota (75s backoff x8 in evaluate phase;
+  CLI flags don't propagate on resume — checkpoint edit required).
   Resume after reset: `bun run src/index.ts run -r kodand-f2`
   (checkpoint has answer:1/evaluate:1 concurrency; quota-safe).
   Cost cap for F2+F3 without asking: $2 on the google key.
