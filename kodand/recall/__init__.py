@@ -18,13 +18,17 @@ class RecallEngine:
     def recall(self, query: str = "", k: int = 5, scope: str = None) -> List[Dict]:
         """Retrieve relevant memories by keyword search. Ranked by utility when available."""
         hits = self.store.recall(query=query, k=k*3, scope=scope)
-        # utility-driven ranking: if utility scorer has data, sort by utility
+        # utility-driven ranking: sort by utility ONLY so FTS rank survives on
+        # ties (a created_at secondary key would silently re-order every fresh
+        # result set by recency and destroy BM25 order — fixed 2026-10-20 after
+        # MemoryBench longmemeval showed MRR 0.00 with evidence at FTS rank #3).
         try:
             from kodand.utility import UtilityScorer
             scorer = UtilityScorer(self.repo_path)
             for h in hits:
                 h["_utility"] = scorer.compute_utility(h["id"])
-            hits.sort(key=lambda x: (x["_utility"], x.get("created_at",0)), reverse=True)
+            if max((h["_utility"] for h in hits), default=0) > 0:
+                hits.sort(key=lambda x: x["_utility"], reverse=True)
             for h in hits:
                 h.pop("_utility", None)
         except Exception:
@@ -83,13 +87,14 @@ class RecallEngine:
             if r["id"] not in seen:
                 seen.add(r["id"])
                 unique.append(r)
-        # utility ranking
+        # utility ranking (utility only — see recall() for why no recency tiebreak)
         try:
             from kodand.utility import UtilityScorer
             scorer = UtilityScorer(self.repo_path)
             for h in unique:
                 h["_utility"] = scorer.compute_utility(h["id"])
-            unique.sort(key=lambda x: (x["_utility"], x.get("created_at",0)), reverse=True)
+            if max((h["_utility"] for h in unique), default=0) > 0:
+                unique.sort(key=lambda x: x["_utility"], reverse=True)
             for h in unique:
                 h.pop("_utility", None)
         except Exception:
