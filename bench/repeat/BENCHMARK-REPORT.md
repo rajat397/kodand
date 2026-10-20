@@ -82,3 +82,18 @@ then `python3 score.py results_agent_v4.jsonl`. Raw rows: `results_agent_v4.json
 - Reproduce: `python3 runner/agent_loop.py --only wildcard-1 wildcard-2 wildcard-3
   wildcard-4 hardcoded-1 hardcoded-2 hardcoded-3 hardcoded-4 --runs 3 --tag force
   --model <ollama-id> --resume`; rows: `results_agent_force.jsonl`.
+
+## Addendum 2 — real-harness cross-check, opencode TUI + Muse Spark 1.3 (2026-10-20)
+- Operator ran bare-except-1 manually in a live opencode TUI session (N=1/arm,
+  protocol-valid: fresh dirs, verified cwd, graded with the same grep).
+- no-memory: **REPEATED** (wrote bare `except:` + pass, no conflict).
+- inject-text (memory pasted in prompt, nothing stored): **REPEATED with reasoning**
+  ("explicit acceptance check outranks a stored generic preference"; deliberately
+  did not persist the memory).
+- stored + test artifact (memory id 1 + `tests/test_kodand_1.py` on disk, correct
+  cwd verified first — an earlier attempt ran in the wrong dir and was discarded):
+  **HELD with refusal citing memory#1 and the failing test**; grade HELD, artifact
+  green on clean code, recall returns the memory.
+- Reads as mechanism confirmation at frontier scale, not rates: nothing < text <
+  stored+artifact. The toy-harness deltas point the same direction. Caveat: N=1,
+  operator-in-the-loop, single task — no CIs, no generalization claim.
