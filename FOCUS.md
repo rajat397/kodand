@@ -66,18 +66,14 @@ We add kodand as a first-class provider there, then score both sides in public.
   holds `memorybench-local-changes.patch` + provider src tarball + ALL run
   checkpoints + `RESTORE.md` (8-step rebuild). Checkpoint write-through verified
   live. Kodand repo pushed per tranche; keys in auth.json (persistent).
-- [ ] **F4 supermemory arm: `sm-smoke2` RUNNING (local server, same models).**
-  Server + key recovered after crash; 1-Q validation of local-vs-cloud parity
-  before the side-by-side compare.
-- [ ] **F3 — full LongMemEval-S (500 Q) kodand run: RUNNING.**
-  Launcher scripts `/home/rajat/run-f3.sh` (+ `run-smoke1.sh`), setsid-detached
-  after repeated crash-kills of background jobs. Status: ingest 32/500, pacing
-  through quota on answers. Checkpoint `kodand-f3` holds all state.
-- [ ] **F4 — side-by-side vs supermemory: UNBLOCKED, sm-smoke1 RUNNING.**
-  Local server up detached (pid survives crashes; :6767=200; prior store had
-  local Xenova embeddings). `sm-smoke1` re-driving indexing against live server.
-  Compare command when both providers validated:
-  `compare -p kodand,supermemory -b longmemeval -s N` (+ SUPERMEMORY_* env).
+- [ ] **F3-nvidia lane: `kodand-nvfull` RUNNING (full 500, nvidia judge+answer).**
+  Same kodand provider, separate judge column — never mixed with gemini numbers.
+  Launcher `/home/rajat/run-nvfull.sh`, setsid-detached.
+- [ ] **F4 side-by-side: `kodand-sm-compare1` RUNNING (both providers, nvidia judge).**
+  `compare -p kodand,supermemory -b longmemeval -s 10` (+ SUPERMEMORY_* env);
+  kodand side ingesting now, supermemory arm ingests into the local server next.
+  Old gemini-lane runs (`kodand-f3c`) and 1-Q smokes (`sm-smoke2`) are superseded
+  checkpoints — kept on disk, not deleted.
 - [ ] **F3 — full LongMemEval-S kodand run.** Same judge + answering model as C1
   (GPT-4o judge; answering model pinned and recorded). Accept: Recall@20 and
   per-category table in `bench/memorybench/results/`, committed.
