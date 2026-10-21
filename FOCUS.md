@@ -41,7 +41,12 @@ We add kodand as a first-class provider there, then score both sides in public.
   Harness pacing patched locally for quota (75s backoff x8 in evaluate AND answer;
   CLI concurrency flags don't propagate on resume — checkpoint edit required).
   Cost cap for F3 without asking: $2 on the google key.
-- [ ] **F3 rerun on cheapest-working model: `kodand-f3b` RUNNING (10/500 judged).**
+- [ ] **F3 rerun on cheapest-working model: `kodand-f3c` RUNNING (true full-500).**
+  Lesson learned the hard way: `kodand-f3b` only ever ran 10 questions despite a
+  500-question checkpoint — killing it mid-ingest and resuming hit the harness's
+  old-checkpoint path (`startedQuestions` only, no stored limit). f3b's 6/10 is
+  valid as a lite-model replication of F2's slice, not as F3. Rule: never kill a
+  run mid-ingest; `f3c` runs uninterrupted to completion.
   Model selection 2026-10-21 (owner pricing table): `gemini-3-flash` 404s;
   `gemini-3.5-flash-lite` ($0.30/$2.50) answers live → winner; 3.8 stays fallback.
   Pricing favors lite ~5x vs 3.8 ($1.50/$7.50) for judge+answer-heavy runs.
