@@ -41,6 +41,14 @@ We add kodand as a first-class provider there, then score both sides in public.
   Harness pacing patched locally for quota (75s backoff x8 in evaluate AND answer;
   CLI concurrency flags don't propagate on resume — checkpoint edit required).
   Cost cap for F3 without asking: $2 on the google key.
+- [ ] **F3 rerun on cheapest-working model: `kodand-f3b` RUNNING.**
+  Model selection 2026-10-21 (owner pricing table): `gemini-3-flash` 404s;
+  `gemini-3.5-flash-lite` ($0.30/$2.50) answers live → winner; 3.8 stays fallback.
+  Pricing favors lite ~5x vs 3.8 ($1.50/$7.50) for judge+answer-heavy runs.
+  Relaunched full-500 as `kodand-f3b` (fresh run id = one model throughout).
+- [ ] **F4 supermemory arm: `sm-smoke2` RUNNING (local server, same models).**
+  Server + key recovered after crash; 1-Q validation of local-vs-cloud parity
+  before the side-by-side compare.
 - [ ] **F3 — full LongMemEval-S (500 Q) kodand run: RUNNING.**
   Launcher scripts `/home/rajat/run-f3.sh` (+ `run-smoke1.sh`), setsid-detached
   after repeated crash-kills of background jobs. Status: ingest 32/500, pacing
