@@ -50,7 +50,14 @@ We add kodand as a first-class provider there, then score both sides in public.
   unknown). Conclusion: remaining blocker is QUOTA ONLY (free-tier buckets),
   not plumbing, not auth. Unblocks: (1) paid/billed Google key, (2) quota
   reset + grind, (3) user-side run where the gateway isn't banned.
-- [ ] **F3 rerun on cheapest-working model: `kodand-f3c` RUNNING (true full-500).**
+- [x] **F3-gemini partial: 149/500 judged (`kodand-f3c`, lite judge+answer).**
+  77/149 = 51.7%, 43 abstentions (29%, zero hallucinations observed).
+  Per type: knowledge-update 14/17 (0.82), single-user 11/15 (0.73),
+  single-assistant 11/17 (0.65), temporal 21/49 (0.43), multi-session 16/39
+  (0.41), single-preference 4/12 (0.33). CAVEATS: first-178 order-biased
+  sample, not a random slice; lite judge+answer (not GPT-4o); abstention-heavy
+  profile. Checkpoint holds everything; run paused for nvidia lanes.
+- [ ] **F3 rerun on cheapest-working model: `kodand-nvfull` + F4 compare RUNNING.**
   Lesson learned the hard way: `kodand-f3b` only ever ran 10 questions despite a
   500-question checkpoint — killing it mid-ingest and resuming hit the harness's
   old-checkpoint path (`startedQuestions` only, no stored limit). f3b's 6/10 is
