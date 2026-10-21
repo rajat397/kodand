@@ -38,9 +38,18 @@ We add kodand as a first-class provider there, then score both sides in public.
   blocked-chunk audit cleared the filter (the one blocked turn was irrelevant copy).
   Miss pattern: multi-session aggregation questions don't fit top-10 chunks.
   That is the named F3 tuning target.
-  Harness pacing patched locally for quota (75s backoff x8 in evaluate AND answer;
-  CLI concurrency flags don't propagate on resume — checkpoint edit required).
+  Harness pacing patched locally for quota (75s→150s backoff, x8-12, in evaluate AND
+  answer; CLI concurrency flags don't propagate on resume — checkpoint edit required).
   Cost cap for F3 without asking: $2 on the google key.
+- Infra findings 2026-10-21 (headless-opencode investigation, closed):
+  `opencode run` headless is FINE — spawned servers stream correctly when the
+  provider endpoint is reachable (proven: instant JSON errors via `google`
+  provider). The hangs were exclusive to gateway-routed (opencode-go) models.
+  Direct api.opencode.ai calls from this sandbox hit Cloudflare 1010 (edge ban;
+  browser UA passes edge but all guessed paths 404 — real data-plane paths
+  unknown). Conclusion: remaining blocker is QUOTA ONLY (free-tier buckets),
+  not plumbing, not auth. Unblocks: (1) paid/billed Google key, (2) quota
+  reset + grind, (3) user-side run where the gateway isn't banned.
 - [ ] **F3 rerun on cheapest-working model: `kodand-f3c` RUNNING (true full-500).**
   Lesson learned the hard way: `kodand-f3b` only ever ran 10 questions despite a
   500-question checkpoint — killing it mid-ingest and resuming hit the harness's
