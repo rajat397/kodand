@@ -204,15 +204,19 @@ def init_repo(repo_path: str, options: dict = None) -> Dict:
     # Create store
     store = Store(repo_path)
 
-    # Create repo entry
+    # Create repo entry (best-effort: skip if secret filter blocks repo name)
     repo_name = os.path.basename(repo_path)
-    repo_entry = store.remember(
-        content=f"Repository: {repo_name}",
-        surface="text",
-        locator="AGENTS.md",
-        scope="repo",
-        session_id="init",
-    )
+    try:
+        repo_entry = store.remember(
+            content=f"Repository: {repo_name}",
+            surface="text",
+            locator="AGENTS.md",
+            scope="repo",
+            session_id="init",
+        )
+    except ValueError:
+        pass  # Secret detection blocked repo name - not critical for init
+        repo_entry = None
 
     # Write marker
     with open(os.path.join(kodand_dir, "initialized"), "w") as f:
@@ -220,8 +224,8 @@ def init_repo(repo_path: str, options: dict = None) -> Dict:
 
     return {
         "success": True,
-        "message": f"Initialized kodand for {repo_name} (repository {repo_entry['key']})",
-        "repoId": repo_entry["key"],
+        "message": f"Initialized kodand for {repo_name}" + (f" (repository {repo_entry['key']})" if repo_entry else ""),
+        "repoId": repo_entry["key"] if repo_entry else None,
     }
 
 
