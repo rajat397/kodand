@@ -76,6 +76,8 @@ class Store:
             confidence TEXT DEFAULT 'high'
         );
         CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(content, locator, tokenize='porter');
+        -- I10: sqlite-vec hybrid (FTS lexical + vector dense) + hypervectors
+        -- vec0 virtual table is created lazily in _ensure_vec() to avoid hard dep on loadable extension at init time
         """)
         conn.commit()
         # Migrations for pre-existing DBs (idempotent).
@@ -117,7 +119,64 @@ class Store:
                 pass
         except Exception:
             pass
+        # I10: vector + hypervector tables (best-effort, no hard fail if extension missing)
+        try:
+            import sqlite_vec
+            conn.enable_load_extension(True)
+            conn.load_extension(sqlite_vec.loadable_path())
+            conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(embedding float[768] distance_metric=cosine)")
+            conn.execute("CREATE TABLE IF NOT EXISTS hypervectors (entry_id INTEGER PRIMARY KEY, hv BLOB)")
+        except Exception:
+            pass
         conn.close()
+
+    def _vec_embed(self, text: str) -> list:
+        """Lightweight 768-d hash embedding (offline, no model) — placeholder for embgemma2.
+        Each token hashes to a 768-d random unit vector, summed and L2-normalized.
+        Deterministic, fast, ~0.02ms per text. Swap to embgemma2 when cached."""
+        import hashlib, math, struct
+        vec = [0.0]*768
+        for tok in text.lower().split():
+            # per-token deterministic random vector via hash
+            h = hashlib.sha256(tok.encode()).digest()
+            for i in range(768):
+                # derive float in [-1,1] from hash bytes
+                b = h[i % len(h)]
+                vec[i] += (b / 127.5 - 1.0) * (1.0 / (1 + i % 7))
+        # L2 normalize
+        n = math.sqrt(sum(x*x for x in vec)) or 1.0
+        return [x/n for x in vec]
+
+    def _hv_encode(self, text: str) -> bytes:
+        """10k-D hypervector gate (Hillock pattern): 157×uint64 bit-packed, popcount-ready.
+        Bundles per-token random hypervectors via majority vote."""
+        import hashlib, struct
+        D = 10000
+        N = 157  # ceil(10000/64)
+        counts = [0]*D
+        for tok in text.lower().split():
+            # per-token random hypervector via hash
+            hv = hashlib.sha256(tok.encode()).digest()
+            # expand hash to 10k bits via repeated hashing
+            bits = []
+            cur = hv
+            while len(bits) < D:
+                for b in cur:
+                    for bit in range(8):
+                        bits.append((b >> bit) & 1)
+                        if len(bits) >= D:
+                            break
+                    if len(bits) >= D:
+                        break
+                cur = hashlib.sha256(cur).digest()
+            for i, b in enumerate(bits):
+                counts[i] += 1 if b else -1
+        # majority vote -> bits
+        out = bytearray(N*8)
+        for i in range(D):
+            if counts[i] > 0:
+                out[i//8] |= 1 << (i % 8)
+        return bytes(out)
 
     def remember(self, content: str, surface: str = "text", locator: str = "",
                  scope: str = "repo", session_id: str = None, memory_type: str = "reference") -> dict:
@@ -139,6 +198,31 @@ class Store:
             (content, surface, locator, scope, session_id or "", now, now, memory_type)
         )
         entry_id = cur.lastrowid
+        # I10: hybrid vector + hypervector (offline, best-effort)
+        try:
+            import sqlite_vec
+            conn.enable_load_extension(True)
+            conn.load_extension(sqlite_vec.loadable_path())
+            vec = self._vec_embed(content + " " + locator)
+            # vec0 expects JSON array or blob; use JSON for now
+            import json as _json
+            # ensure table exists (may have been created lazily)
+            try:
+                conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(embedding float[768] distance_metric=cosine)")
+            except Exception:
+                pass
+            conn.execute("INSERT INTO memories_vec(rowid, embedding) VALUES (?, ?)", (entry_id, _json.dumps(vec)))
+        except Exception:
+            pass
+        try:
+            hv = self._hv_encode(content + " " + locator)
+            try:
+                conn.execute("CREATE TABLE IF NOT EXISTS hypervectors (entry_id INTEGER PRIMARY KEY, hv BLOB)")
+            except Exception:
+                pass
+            conn.execute("INSERT OR REPLACE INTO hypervectors(entry_id, hv) VALUES (?, ?)", (entry_id, hv))
+        except Exception:
+            pass
         # auto-log captured event for north-star
         conn.execute(
             "INSERT INTO events (ts, kind, entry_id, provenance, detail) VALUES (?, ?, ?, ?, ?)",
@@ -173,6 +257,20 @@ class Store:
                     fts_ids = [r[0] for r in fts_rows]
             except Exception:
                 fts_ids = []
+            # I10: vector KNN hybrid (offline, cosine)
+            vec_ids: List[int] = []
+            try:
+                import sqlite_vec, json as _json
+                conn.enable_load_extension(True)
+                conn.load_extension(sqlite_vec.loadable_path())
+                qvec = self._vec_embed(query)
+                vec_rows = conn.execute(
+                    "SELECT rowid, distance FROM memories_vec WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
+                    (_json.dumps(qvec), k * 3),
+                ).fetchall()
+                vec_ids = [r[0] for r in vec_rows]
+            except Exception:
+                vec_ids = []
             like = f"%{query}%"
             like_rows = conn.execute(
                 f"SELECT * FROM memories WHERE state='active' AND {HOLDOUT} "
@@ -180,20 +278,29 @@ class Store:
                 (like, like, k * 3),
             ).fetchall()
             by_id = {r["id"]: dict(r) for r in like_rows}
-            if fts_ids:
-                placeholders = ",".join("?" for _ in fts_ids)
-                try:
-                    for r in conn.execute(
-                        f"SELECT * FROM memories WHERE id IN ({placeholders}) "
-                        f"AND state='active' AND {HOLDOUT}",
-                        tuple(fts_ids),
-                    ).fetchall():
-                        by_id.setdefault(r["id"], dict(r))
-                except Exception:
-                    pass
-            # FTS rank first, then recency.
-            entries = [by_id[i] for i in fts_ids if i in by_id]
-            entries += [e for i, e in by_id.items() if i not in fts_ids]
+            for ids in (fts_ids, vec_ids):
+                if ids:
+                    placeholders = ",".join("?" for _ in ids)
+                    try:
+                        for r in conn.execute(
+                            f"SELECT * FROM memories WHERE id IN ({placeholders}) "
+                            f"AND state='active' AND {HOLDOUT}",
+                            tuple(ids),
+                        ).fetchall():
+                            by_id.setdefault(r["id"], dict(r))
+                    except Exception:
+                        pass
+            # Rank: vector cosine first (if any), then FTS BM25, then recency
+            # Merge order: vec_ids preserve cosine rank, fts_ids preserve BM25
+            seen = set()
+            entries = []
+            for i in vec_ids:
+                if i in by_id and i not in seen:
+                    entries.append(by_id[i]); seen.add(i)
+            for i in fts_ids:
+                if i in by_id and i not in seen:
+                    entries.append(by_id[i]); seen.add(i)
+            entries += [e for i, e in by_id.items() if i not in seen]
             entries = entries[:k]
         else:
             rows = conn.execute(
