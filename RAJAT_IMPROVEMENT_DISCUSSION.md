@@ -41,7 +41,7 @@
 
 **Agreed lens:** Kernel RCU/WAL → lock-free `bridge.db`; `zstd` + PQ on `embgemma2`/`nomic-embed-text` → `3342tok→~1200tok`; pyramids → 3-scale memory (message→session→haystack); BM25 (1976) → learned sparse `SPLADEv3`/`ColBERTv2` hybrid on-device, `HNSW` vs `IVF`; `OKF` as typed chunk schema vs `locator="session#i"`; LSM-tree for write-heavy `500×50` ingest.
 
-**New bar:** 99% offline, lightweight, on-device — no cloud, no API in retrieval. Supermemory local runs killed (`2.7Gi free`), pivot captured in `FOCUS.md:92f4c21`.
+**New bar:** 99% accuracy target, complete local, lightweight, on-device — no cloud, no API in retrieval. Supermemory local runs killed (`2.7Gi free`), pivot captured in `FOCUS.md:92f4c21`.
 
 ---
 
