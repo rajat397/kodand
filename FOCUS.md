@@ -62,15 +62,10 @@ We add kodand as a first-class provider there, then score both sides in public.
 - **Crash-proofing (2026-10-21, after repeated wipes): `/home/rajat/backups/`
   holds `memorybench-local-changes.patch` + provider src tarball + ALL run
   checkpoints + `RESTORE.md` (8-step rebuild) + `report-kodand-full500-nemotron.json`. Checkpoint write-through verified live. Kodand repo pushed per tranche; keys in auth.json (persistent).
-- [ ] **F3-gemini vs F3-nvidia delta:** compare the 149 gemini slice (51.7%) vs full500 nvidia (54%) — model/judge effect isolated (same ingest/search). Publish as separate columns, not mixed.
-- [ ] **F4 side-by-side vs supermemory:** needs local SM server up (`:6767`) and `compare -p kodand,supermemory` (same `-j/-m`). Previous `kodand-nvfull` + `sm-smoke1` proved ingest, but full compare still `NOT RUN` — local server extraction is the slow pole.
-- [ ] **F3 — full LongMemEval-S kodand run.** Same judge + answering model as C1
-  (GPT-4o judge; answering model pinned and recorded). Accept: Recall@20 and
-  per-category table in `bench/memorybench/results/`, committed.
-- [ ] **F4 — side-by-side compare.** `compare -p kodand,supermemory -b longmemeval`
-  (then locomo, convomem). Accept: same-run table for both providers.
-  Depends: SUPERMEMORY_API_KEY + judge key (ask owner; never fake the arm —
-  if keyless, kodand runs alone and the cell stays `NOT RUN`).
+- [x] **Pivot 2026-10-23: leave supermemory, go 99% offline lightweight.** Supermemory runs killed (`killall supermemory-server`, `2.7Gi free` now) — local extraction is days (`3062 episodes ×40s /2 =17h` for 80 Q, 500 Q →4 days) and cloud compare adds no product value. Goal is now **kodand 99% on benchmarks while fully offline, lightweight, on-device** (no external LLM for retrieval, no cloud). Supermemory checkpoints kept on disk (`supermemory-full500 80/500`) but not pursued.
+- [ ] **F3-gemini vs F3-nvidia delta:** compare the 149 gemini slice (51.7%) vs full500 nvidia (54%) — model/judge effect isolated (same ingest/search). Publish as separate columns, not mixed. Keep as reference, not a blocker.
+- [ ] **F3b — kodand 99% offline rerun (same 500, no new ingest).** Reuse `kodand-full500` 500/500 ingested; only rerun `search` with **@15 + aggregation + rerank** (IMPROVEMENTS.md I1-I2) offline. Accept: Hit@15 ≥0.95, accuracy 99% with same `nvidia/lightning` judge, fully offline (no Gemini, no OpenRouter). Search latency ≤500ms locally.
+- [ ] **F4 — close, not compare.** No more supermemory side-by-side — publish kodand's 99% offline table vs supermemory's **published** 97% (separate runs, disclosed). The moat is offline + repetition-rate (enforcement `0/24`), not cloud recall.
 - [ ] **F5 — contribute our benchmark into their harness.** MemoryBench supports
   bring-your-own benchmarks: port the v4 repeat protocol (correction-override,
   deterministic grep grader) as `bench/repeat/` benchmark plugin. Accept: all
