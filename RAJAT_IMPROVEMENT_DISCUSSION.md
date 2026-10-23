@@ -42,3 +42,11 @@
 **Agreed lens:** Kernel RCU/WAL → lock-free `bridge.db`; `zstd` + PQ on `embgemma2`/`nomic-embed-text` → `3342tok→~1200tok`; pyramids → 3-scale memory (message→session→haystack); BM25 (1976) → learned sparse `SPLADEv3`/`ColBERTv2` hybrid on-device, `HNSW` vs `IVF`; `OKF` as typed chunk schema vs `locator="session#i"`; LSM-tree for write-heavy `500×50` ingest.
 
 **New bar:** 99% offline, lightweight, on-device — no cloud, no API in retrieval. Supermemory local runs killed (`2.7Gi free`), pivot captured in `FOCUS.md:92f4c21`.
+
+---
+
+## Discussion — 2026-10-23: Kodand as external memory for its own builder (stateless amnesia)
+
+**Rajat:** "No external memory between turns — I'm stateless across tool calls except what fits in context + what we wrote to disk." — one more area of research and feature for Kodand.
+
+**Agreed:** Kodand *is* the fix. Before any `bun run`, the harness must `kodand recall --repo . --query "top unchecked task in FOCUS"` — not `cat` a file, but retrieval with ranking. This is the same `RCU/WAL` + `after_write` gate that gave `wildcard 0/24` vs `0.875` without guard: `FOCUS` as recallable intent, not chat history. Supermemory retrieves past chats; we retrieve current intent. New task `I9` in `IMPROVEMENTS.md` — auto-logged here per your rule (no prompt needed next time).
