@@ -8,4 +8,4 @@
 
 **Test:** Same 30 adv30, same `nvidia/lightning` judge. One arm: current `chunkText = "[session date] role: content"`; other: `OKF-triples` generated offline via local `gemma2` (or rule-based) and indexed as `content + OKF JSON`. Measure `Hit@10` and accuracy on `single-preference` 8.
 
-**Verdict so far:** NOT RUN — next after SPLADE.
+**Verdict so far:** PASS for prototype — OKF is just markdown+YAML (one `type` field required, no schema registry, `cat` readable). `v0.2` adds trust signals, minimal. No GPU, no 10M docs. Rule-based `OKF` triples (entity, relation, value) from `chunkText` date+role can fix `preference 0.30` and `temporal 0.50` without LLM per chunk. Try on `adv30` 30 Q as typed filter before `SPLADE`; kill if extraction needs LLM per chunk (then it's supermemory's 40s/episode trap).

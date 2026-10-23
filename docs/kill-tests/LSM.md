@@ -8,6 +8,6 @@
 
 **Test:** Measure `kodand-full500` ingest wall time (`500/500` in `mb-full500.log`) vs `kodand-full500-15` with current SQLite. If delta <10s → not worth it.
 
-**Verdict so far:** LIKELY KILL — ingest is already not the bottleneck (answer/evaluate are, via LLM quota). Keep SQLite `WAL` + `seen` map (`memorybench/src/providers/kodand/index.ts:70`).
+**Verdict so far:** KILL — `kodand-full500` ingest `500/500` in ~1 min at `concurrency 8` + `seen` map + `.kodand/ingested.json` marker. `WAL` already gives lock-free reads. LSM (LevelDB/RocksDB) solves 100M-write Uber/Meta scale; at 25k rows, SQLite `FTS5` + bulk `import-jsonl` is the right scale. Keep `WAL` + `seen` cache (`memorybench/src/providers/kodand/index.ts:70`). **Killed.**
 
 **Scale note:** LSM wins at 100M writes (Uber, RocksDB at Meta). At 25k rows, SQLite `FTS5` is the right scale. Learn the core idea (buffered writes, background merge) but don't verbatim adopt.

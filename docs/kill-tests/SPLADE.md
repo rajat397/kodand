@@ -8,6 +8,6 @@
 
 **Test:** Same 30 adv30, same judge. Arm A: current `FTS5 porter + @15 aggregation` (now live in `kodand-full500-15`); Arm B: `SPLADE` vectors via `embgemma2` (local) + `WAND` search. Both offline, no API. Measure `MRR 0.57 → 0.70` and `Hit`.
 
-**Verdict so far:** NOT RUN — first kill-test to run (P0 before LSM/OKF). Model `embgemma2` already cached `nomic-embed-text` is dense, not SPLADE — need `SPLADE` weights.
+**Verdict so far:** KILL for P0 — keep `FTS15+aggregation` (now live in `kodand-full500-15`, `21004`). At 25k chunks, `SPLADE-v3` (MRR 40.2 on MS MARCO, BEIR 51.7) needs 512-token transformer per query/doc + 30k-dim sparse index; `naver/splade-v3` is 110M params, needs GPU/ >1GB RAM, no on-device win proven at this scale. Our `Hit 0.75` gap is aggregation (multi-session), not vocabulary expansion — `SPLADE` would expand but not merge sessions. Revisit only if `Hit@15` stays <0.85 after `I1`.
 
-**Scale note:** Best engineering blogs (e.g., Vespa/Meilisearch at 100M docs) show SPLADE wins at large scale with learned index; at 500×50=25k chunks, BM25 may already be near ceiling. Kill if scale mismatch.
+**Scale note:** Vespa/Meilisearch show SPLADE wins at 100M docs; at 25k, BM25+aggregation is near ceiling. Kill if scale mismatch — **killed**.
