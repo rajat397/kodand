@@ -2,8 +2,10 @@
 kodand.store - SQLite-based memory storage
 """
 
+import queue
 import sqlite3
 import os
+import threading
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -129,6 +131,10 @@ class Store:
         except Exception:
             pass
         conn.close()
+        # I10 async worker: vector/hypervector generation off the hot path
+        self._async_queue: "queue.Queue[Dict[str, Any]]" = queue.Queue()
+        self._async_thread = threading.Thread(target=self._async_worker, daemon=True)
+        self._async_thread.start()
 
     def _vec_embed(self, text: str) -> list:
         """Lightweight 768-d hash embedding (offline, no model) — placeholder for embgemma2.
@@ -178,6 +184,66 @@ class Store:
                 out[i//8] |= 1 << (i % 8)
         return bytes(out)
 
+    def _async_worker(self):
+        """Background worker: vector + hypervector generation, never blocks remember."""
+        while True:
+            try:
+                item = self._async_queue.get(timeout=1)
+            except queue.Empty:
+                continue
+            try:
+                entry_id = item["entry_id"]
+                content = item["content"]
+                locator = item["locator"]
+                # vec
+                try:
+                    import sqlite_vec, json as _json
+                    vec = self._vec_embed(content + " " + locator)
+                    conn = self._get_conn()
+                    try:
+                        conn.enable_load_extension(True)
+                        conn.load_extension(sqlite_vec.loadable_path())
+                        conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(embedding float[768] distance_metric=cosine)")
+                    except Exception:
+                        pass
+                    try:
+                        conn.execute("INSERT INTO memories_vec(rowid, embedding) VALUES (?, ?)", (entry_id, _json.dumps(vec)))
+                        conn.commit()
+                    except Exception:
+                        pass
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                # hv
+                try:
+                    hv = self._hv_encode(content + " " + locator)
+                    conn2 = self._get_conn()
+                    try:
+                        conn2.execute("CREATE TABLE IF NOT EXISTS hypervectors (entry_id INTEGER PRIMARY KEY, hv BLOB)")
+                    except Exception:
+                        pass
+                    try:
+                        conn2.execute("INSERT OR REPLACE INTO hypervectors(entry_id, hv) VALUES (?, ?)", (entry_id, hv))
+                        conn2.commit()
+                    except Exception:
+                        pass
+                    try:
+                        conn2.close()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            finally:
+                try:
+                    self._async_queue.task_done()
+                except Exception:
+                    pass
+
     def remember(self, content: str, surface: str = "text", locator: str = "",
                  scope: str = "repo", session_id: str = None, memory_type: str = "reference") -> dict:
         # Secret/PII exclusion at write time (Tranche 2.4)
@@ -198,29 +264,9 @@ class Store:
             (content, surface, locator, scope, session_id or "", now, now, memory_type)
         )
         entry_id = cur.lastrowid
-        # I10: hybrid vector + hypervector (offline, best-effort)
+        # I10 async: enqueue vector/hypervector work, don't block the transaction
         try:
-            import sqlite_vec
-            conn.enable_load_extension(True)
-            conn.load_extension(sqlite_vec.loadable_path())
-            vec = self._vec_embed(content + " " + locator)
-            # vec0 expects JSON array or blob; use JSON for now
-            import json as _json
-            # ensure table exists (may have been created lazily)
-            try:
-                conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(embedding float[768] distance_metric=cosine)")
-            except Exception:
-                pass
-            conn.execute("INSERT INTO memories_vec(rowid, embedding) VALUES (?, ?)", (entry_id, _json.dumps(vec)))
-        except Exception:
-            pass
-        try:
-            hv = self._hv_encode(content + " " + locator)
-            try:
-                conn.execute("CREATE TABLE IF NOT EXISTS hypervectors (entry_id INTEGER PRIMARY KEY, hv BLOB)")
-            except Exception:
-                pass
-            conn.execute("INSERT OR REPLACE INTO hypervectors(entry_id, hv) VALUES (?, ?)", (entry_id, hv))
+            self._async_queue.put_nowait({"entry_id": entry_id, "content": content, "locator": locator})
         except Exception:
             pass
         # auto-log captured event for north-star
