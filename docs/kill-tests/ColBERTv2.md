@@ -6,6 +6,6 @@
 
 **Kill criteria:** If needs per-token embeddings (avg 100 tokens × 128 dim × 2 bytes ≈ 640MB for 25k chunks) + k-means codebook + decompress per query → KILL on 5.7Gi box with `bge-reranker` already 105M. Also KILL if GPU required for encoding.
 
-**Verdict so far:** KILL for P0 — same `MRR` gain as `bge-reranker` + `FTS15+aggregation` but 10× index size and residual decompress per query. Keep `bge-reranker` (single vector, already cached) as `I2`, not ColBERTv2.
+**Verdict so far:** DEFER to P1 — same `MRR` gain as `bge-reranker` for P0, but **late interaction is the large-scale answer** (`6-10×` residual compression, denoised supervision, multi-vector per token). At `2.5M` chunks, `bge-reranker` single-vector saturates; `ColBERTv2`'s token-level `HNSW` is the `sub-300ms` path for `largest repos`. Keep `bge-reranker` (105M cached) for P0, `ColBERTv2` as `P1` for `HNSW vs IVF` bake-off at scale.
 
 **Scale note:** Jina-ColBERT-v2 best at 25KB/doc down to 64 dims, but still multi-vector per token — overkill at 25k docs where `Hit 75%` is aggregation, not ranking.
