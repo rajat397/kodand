@@ -1,6 +1,6 @@
-# Rajat's Improvement Discussion — Human Judgement (Frozen)
+# Rajat's Improvement Discussion — Human Judgement (Discussion Log)
 
-**Source:** adversarial review on `kodand-full500` 270/500 = 54% (Nemotron Lightning, 2026-10-23). This file is Rajat's human judgement, based purely on discussions between us. Do not edit without explicit instruction. The assistant keeps a separate evolving copy.
+**Source:** adversarial review on `kodand-full500` 270/500 = 54% (Nemotron Lightning, 2026-10-23). This file is Rajat's discussion log — updated automatically from our discussions. The assistant's custom research lives in `RAJAT_IMPROVEMENT_DISCUSSION_ASSISTANT_COPY.md` and will not overwrite this file's discussion entries.
 
 **Run:** `kodand-full500` 500/500 `270/500 = 54%` MemScore 54% / 1563ms / 3342tok retrieval Hit@10 75% MRR 0.574 nDCG 0.596 (nvidia/nemotron-3.5-lightning-30b-a3b judge+answer). Artifact: `~/memorybench/data/runs/kodand-full500/report.json` + `~/backups/report-kodand-full500-nemotron.json`.
 
@@ -32,3 +32,13 @@
 * Fix: I4 boost assistant: via locator weight.
 
 **Not the limit:** model (pinned nvidia), abstention profile (43/149, zero hallucinations) is strength.
+
+---
+
+## Discussion — 2026-10-23: Make supermemory look like a dwarf
+
+**Rajat:** Purpose is to dwarf supermemory — think differently and better, via cutting-edge or classic but highly intelligent fundamentals (Linux kernel reliability like RCU/CoW/WAL, latest ML/AI, core CS, cross-domain like compression / image pyramids / IR, Google OKF, local `embgemma2`, OSS harness/RAG techniques). Learn from best engineering blogs but adapt to our scale — trust only authoritative sources after brutal adversarial usefulness analysis.
+
+**Agreed lens:** Kernel RCU/WAL → lock-free `bridge.db`; `zstd` + PQ on `embgemma2`/`nomic-embed-text` → `3342tok→~1200tok`; pyramids → 3-scale memory (message→session→haystack); BM25 (1976) → learned sparse `SPLADEv3`/`ColBERTv2` hybrid on-device, `HNSW` vs `IVF`; `OKF` as typed chunk schema vs `locator="session#i"`; LSM-tree for write-heavy `500×50` ingest.
+
+**New bar:** 99% offline, lightweight, on-device — no cloud, no API in retrieval. Supermemory local runs killed (`2.7Gi free`), pivot captured in `FOCUS.md:92f4c21`.
