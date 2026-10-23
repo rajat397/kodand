@@ -32,3 +32,18 @@
 * Fix: I4 boost assistant: via locator weight.
 
 **Not the limit:** model (pinned nvidia), abstention profile (43/149, zero hallucinations) is strength.
+
+---
+
+## Assistant Evolution — 2026-10-23 pivot: make supermemory look like a dwarf
+
+**New bar from Rajat:** not "match 97%" but **99% offline, lightweight, on-device, fundamentally smarter** — kernel-reliable, compression-smart, IR-modern. Supermemory's hosted graph is a network call; we are a file.
+
+**New research lens (examples, not verbatim):** Linux RCU/CoW/WAL → lock-free reads in `bridge.db` (already `WAL` + `seen` cache, now `ingest:8`); `zstd` + product quantization on `embgemma2`/`nomic-embed-text` (local) → `3342tok → ~1200tok` without MRR loss; image pyramids → 3-scale memory (message → session summary → haystack summary); IR beyond 1976 BM25 → learned sparse `SPLADEv3`/`uniCOIL`, late interaction `ColBERTv2` on-device, hybrid `WAND`; `OKF` (Google open knowledge format) as chunk schema vs `locator="session#i"` strings; LSM-tree for 500×50 write-heavy ingest; `HNSW` vs `IVF` for `<500ms` to beat their `sub-300ms` claim (local SQLite should win).
+
+**Plan (research-first, code second, adversarial):**
+1. Sweep authoritative only: `OKF` spec, `SPLADEv3`, `ColBERTv2`, `QMD` pipeline, Linux `RCU/WAL` — each gets one-page "useful for kodand? kill criteria" (needs 10 GPUs or 100M docs → out).
+2. Bake-off offline: `embgemma2` + `bge-reranker` + `HNSW` vs `FTS15+aggregation` on same `kodand-full500` 500, same `nvidia/lightning` judge, fully offline. No supermemory re-run.
+3. Your `RAJAT_IMPROVEMENT_DISCUSSION.md` stays frozen; this file is the evolving copy.
+
+**Status 2026-10-23:** `F3 FULL 500 270/500=54%` banked (`975964c` human doc frozen), `supermemory-full500` killed (`2.7Gi free`), next is `I1 @15+aggregation` + `I2 rerank` offline on same 500 ingest (no reingest, no API).
