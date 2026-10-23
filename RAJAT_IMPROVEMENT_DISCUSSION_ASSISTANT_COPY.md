@@ -47,3 +47,13 @@
 3. Your `RAJAT_IMPROVEMENT_DISCUSSION.md` stays frozen; this file is the evolving copy.
 
 **Status 2026-10-23:** `F3 FULL 500 270/500=54%` banked (`975964c` human doc frozen), `supermemory-full500` killed (`2.7Gi free`), next is `I1 @15+aggregation` + `I2 rerank` offline on same 500 ingest (no reingest, no API).
+
+---
+
+## Lab — 2026-10-23: I9 Kodand as external memory (stateless amnesia) — evolving
+
+**Problem:** `drift sweep → ingest 500` happened because top task in `FOCUS.md` wasn't recallable — `grep` vs `kodand recall` gate. Same `0/24` vs `0.875` mechanism as `wildcard` force-guard.
+
+**Implementation (evolving):** `scripts/enforce-adversarial.sh` now `kodand remember --repo . --title "FOCUS top task" --content "$TOP_FOCUS"` then `kodand recall --query "top unchecked task in FOCUS"` and `BLOCKED` if top is `Literature sweep` but `ingest 500` attempted. Dogfooding: before any `bun run`, `kodand-full500`'s `FOCUS` is the memory, not `cat`.
+
+**Next:** keep `bench/adversarial-30.json` as the 5-min oracle, `holdout30` never tuned on — this gate ensures we never drift to full `500` without passing `adv30` + `kill-test` verdict first.
