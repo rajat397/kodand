@@ -45,6 +45,14 @@
 
 ---
 
+## Discussion — 2026-10-23: sqlite-vec + hypervectors + Gemma2 + OKF locally
+
+**Rajat:** Resume. New stack idea: use `sqlite-vec` / `sqlite` as vector DB along with hypervectors concepts, plus `embeddingGemma2` for powerful local RAG techniques and `Open Knowledge Format` combinations — all completely local.
+
+**Agreed:** This is the `99% complete local` engine: `sqlite-vec` (vector) + `sqlite FTS5` (lexical) + `hypervectors` (10k-D `popcount` gate, `157×uint64`, `0.01ms`, `~1.2GB` VRAM, `Hillock` pattern) + `embgemma2` (local, `Xenova/bge-base` already cached) + `OKF` typed triples vs `session#i` strings. All offline, one `bridge.db` file. Next is `I10` in `IMPROVEMENTS.md`.
+
+---
+
 ## Discussion — 2026-10-23: Kodand as external memory for its own builder (stateless amnesia)
 
 **Rajat:** "No external memory between turns — I'm stateless across tool calls except what fits in context + what we wrote to disk." — one more area of research and feature for Kodand.
