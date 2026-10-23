@@ -57,30 +57,13 @@ We add kodand as a first-class provider there, then score both sides in public.
   (0.41), single-preference 4/12 (0.33). CAVEATS: first-178 order-biased
   sample, not a random slice; lite judge+answer (not GPT-4o); abstention-heavy
   profile. Checkpoint holds everything; run paused for nvidia lanes.
-- [ ] **F3 rerun on cheapest-working model: `kodand-nvfull` + F4 compare RUNNING.**
-  Lesson learned the hard way: `kodand-f3b` only ever ran 10 questions despite a
-  500-question checkpoint — killing it mid-ingest and resuming hit the harness's
-  old-checkpoint path (`startedQuestions` only, no stored limit). f3b's 6/10 is
-  valid as a lite-model replication of F2's slice, not as F3. Rule: never kill a
-  run mid-ingest; `f3c` runs uninterrupted to completion.
-  Model selection 2026-10-21 (owner pricing table): `gemini-3-flash` 404s;
-  `gemini-3.5-flash-lite` ($0.30/$2.50) answers live → winner; 3.8 stays fallback.
-  Pricing favors lite ~5x vs 3.8 ($1.50/$7.50) for judge+answer-heavy runs.
-  Relaunched full-500 as `kodand-f3b` (fresh run id = one model throughout).
-  First 10 replicate F2's verdicts exactly (same 6 correct / 4 incorrect —
-  model swap 3.8→3.5-lite changed nothing on this slice).
+- [x] **F3 FULL 500: DONE 2026-10-23 (`kodand-full500`, Nemotron Lightning, no reingest).**
+  **270/500 = 54% accuracy**, MemScore **54% / 1563ms / 3342tok**, retrieval **Hit@10 75% MRR 0.574 nDCG 0.596** (nvidia/nemotron-3.5-lightning-30b-a3b judge+answer, cheapest fast path after Google quota wall). Per type: knowledge-update 59/78 (0.76) Hit 0.94, single-user 52/70 (0.74) Hit 0.93, assistant 35/56 (0.62), temporal 66/133 (0.50), multi-session 49/133 (0.37) Hit 0.66, preference 9/30 (0.30). Report `report.json` 7.4M banked. Reused the 500/500 ingested checkpoint (`~1.3Gi` free, SM paused) — no reingest, only answer/evaluate on new model after `EAI_AGAIN`/timeout retry fix (temperature disabled for reasoning model, 30s/90s backoff).
 - **Crash-proofing (2026-10-21, after repeated wipes): `/home/rajat/backups/`
   holds `memorybench-local-changes.patch` + provider src tarball + ALL run
-  checkpoints + `RESTORE.md` (8-step rebuild). Checkpoint write-through verified
-  live. Kodand repo pushed per tranche; keys in auth.json (persistent).
-- [ ] **F3-nvidia lane: `kodand-nvfull` RUNNING (full 500, nvidia judge+answer).**
-  Same kodand provider, separate judge column — never mixed with gemini numbers.
-  Launcher `/home/rajat/run-nvfull.sh`, setsid-detached.
-- [ ] **F4 side-by-side: `kodand-sm-compare1` RUNNING (both providers, nvidia judge).**
-  `compare -p kodand,supermemory -b longmemeval -s 10` (+ SUPERMEMORY_* env);
-  kodand side ingesting now, supermemory arm ingests into the local server next.
-  Old gemini-lane runs (`kodand-f3c`) and 1-Q smokes (`sm-smoke2`) are superseded
-  checkpoints — kept on disk, not deleted.
+  checkpoints + `RESTORE.md` (8-step rebuild) + `report-kodand-full500-nemotron.json`. Checkpoint write-through verified live. Kodand repo pushed per tranche; keys in auth.json (persistent).
+- [ ] **F3-gemini vs F3-nvidia delta:** compare the 149 gemini slice (51.7%) vs full500 nvidia (54%) — model/judge effect isolated (same ingest/search). Publish as separate columns, not mixed.
+- [ ] **F4 side-by-side vs supermemory:** needs local SM server up (`:6767`) and `compare -p kodand,supermemory` (same `-j/-m`). Previous `kodand-nvfull` + `sm-smoke1` proved ingest, but full compare still `NOT RUN` — local server extraction is the slow pole.
 - [ ] **F3 — full LongMemEval-S kodand run.** Same judge + answering model as C1
   (GPT-4o judge; answering model pinned and recorded). Accept: Recall@20 and
   per-category table in `bench/memorybench/results/`, committed.
