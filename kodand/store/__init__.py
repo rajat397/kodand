@@ -264,38 +264,9 @@ class Store:
             (content, surface, locator, scope, session_id or "", now, now, memory_type)
         )
         entry_id = cur.lastrowid
-        # I10 async: bulk import (import-jsonl, session_id=="import-jsonl") stays sync
-        # so the CLI process doesn't exit before vec/hv are durable; interactive
-        # single remembers stay async (off hot path, ~0.3s → ~0.02ms).
-        is_bulk = (session_id == "import-jsonl")
-        if is_bulk:
-            # sync, same transaction, still fast (hash embed ~0.02ms, no model)
-            try:
-                import sqlite_vec, json as _json
-                conn.enable_load_extension(True)
-                conn.load_extension(sqlite_vec.loadable_path())
-                try:
-                    conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(embedding float[768] distance_metric=cosine)")
-                except Exception:
-                    pass
-                vec = self._vec_embed(content + " " + locator)
-                conn.execute("INSERT INTO memories_vec(rowid, embedding) VALUES (?, ?)", (entry_id, _json.dumps(vec)))
-            except Exception:
-                pass
-            try:
-                hv = self._hv_encode(content + " " + locator)
-                try:
-                    conn.execute("CREATE TABLE IF NOT EXISTS hypervectors (entry_id INTEGER PRIMARY KEY, hv BLOB)")
-                except Exception:
-                    pass
-                conn.execute("INSERT OR REPLACE INTO hypervectors(entry_id, hv) VALUES (?, ?)", (entry_id, hv))
-            except Exception:
-                pass
-        else:
-            try:
-                self._async_queue.put_nowait({"entry_id": entry_id, "content": content, "locator": locator})
-            except Exception:
-                pass
+        # I10 disabled: vec/hv off hot path (random hash + 10k-D caused 10s hangs and rank noise).
+        # Re-enable only with real embgemma2 + weighted fusion.
+        pass
         # auto-log captured event for north-star
         conn.execute(
             "INSERT INTO events (ts, kind, entry_id, provenance, detail) VALUES (?, ?, ?, ?, ?)",
@@ -330,20 +301,10 @@ class Store:
                     fts_ids = [r[0] for r in fts_rows]
             except Exception:
                 fts_ids = []
-            # I10: vector KNN hybrid (offline, cosine)
+            # I10: vector KNN hybrid disabled for now — hash embed was random and
+            # dominated FTS rank (vec first). Re-enable only with real embgemma2
+            # and weighted fusion. Keep empty list so FTS is the sole ranker.
             vec_ids: List[int] = []
-            try:
-                import sqlite_vec, json as _json
-                conn.enable_load_extension(True)
-                conn.load_extension(sqlite_vec.loadable_path())
-                qvec = self._vec_embed(query)
-                vec_rows = conn.execute(
-                    "SELECT rowid, distance FROM memories_vec WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
-                    (_json.dumps(qvec), k * 3),
-                ).fetchall()
-                vec_ids = [r[0] for r in vec_rows]
-            except Exception:
-                vec_ids = []
             like = f"%{query}%"
             like_rows = conn.execute(
                 f"SELECT * FROM memories WHERE state='active' AND {HOLDOUT} "
@@ -363,13 +324,9 @@ class Store:
                             by_id.setdefault(r["id"], dict(r))
                     except Exception:
                         pass
-            # Rank: vector cosine first (if any), then FTS BM25, then recency
-            # Merge order: vec_ids preserve cosine rank, fts_ids preserve BM25
+            # Rank: pure FTS BM25 (vec disabled) — preserve BM25 order, fallback recency
             seen = set()
             entries = []
-            for i in vec_ids:
-                if i in by_id and i not in seen:
-                    entries.append(by_id[i]); seen.add(i)
             for i in fts_ids:
                 if i in by_id and i not in seen:
                     entries.append(by_id[i]); seen.add(i)
