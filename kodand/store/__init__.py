@@ -46,7 +46,38 @@ class Store:
             summary TEXT NOT NULL,
             status TEXT DEFAULT 'open',
             detail TEXT,
-            updated_at REAL DEFAULT 0
+            updated_at REAL DEFAULT 0,
+            parent_id INTEGER REFERENCES intents(id),
+            attempt TEXT DEFAULT '',
+            outcome TEXT DEFAULT '',
+            correction TEXT DEFAULT '',
+            enforcement_ref TEXT DEFAULT ''
+        );
+        -- HCIL: hierarchical ledger extensions
+        CREATE TABLE IF NOT EXISTS session_summaries (
+            session_id TEXT PRIMARY KEY,
+            summary TEXT NOT NULL,
+            intent_id INTEGER REFERENCES intents(id),
+            msg_count INTEGER DEFAULT 0,
+            created_at REAL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS okf_triples (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_id INTEGER REFERENCES memories(id),
+            session_id TEXT,
+            subject TEXT NOT NULL,
+            predicate TEXT NOT NULL,
+            object TEXT NOT NULL,
+            confidence REAL DEFAULT 1.0,
+            created_at REAL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS causal_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            intent_id INTEGER REFERENCES intents(id) NOT NULL,
+            from_entry_id INTEGER REFERENCES memories(id),
+            to_entry_id INTEGER REFERENCES memories(id),
+            relation TEXT NOT NULL, -- attempt|outcome|correction|enforcement
+            created_at REAL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS events (
             ts TEXT NOT NULL,
@@ -78,6 +109,11 @@ class Store:
             confidence TEXT DEFAULT 'high'
         );
         CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(content, locator, tokenize='porter');
+        CREATE INDEX IF NOT EXISTS idx_session_summaries_intent ON session_summaries(intent_id);
+        CREATE INDEX IF NOT EXISTS idx_okf_session ON okf_triples(session_id);
+        CREATE INDEX IF NOT EXISTS idx_okf_subject ON okf_triples(subject);
+        CREATE INDEX IF NOT EXISTS idx_causal_intent ON causal_links(intent_id);
+        CREATE VIRTUAL TABLE IF NOT EXISTS session_summaries_fts USING fts5(summary, session_id, tokenize='porter');
         -- I10: sqlite-vec hybrid (FTS lexical + vector dense) + hypervectors
         -- vec0 virtual table is created lazily in _ensure_vec() to avoid hard dep on loadable extension at init time
         """)
@@ -86,12 +122,39 @@ class Store:
         for ddl in [
             "ALTER TABLE memories ADD COLUMN is_holdout INTEGER DEFAULT 0",
             "ALTER TABLE memories ADD COLUMN enforcement_level TEXT DEFAULT 'context'",
+            "ALTER TABLE intents ADD COLUMN parent_id INTEGER REFERENCES intents(id)",
+            "ALTER TABLE intents ADD COLUMN attempt TEXT DEFAULT ''",
+            "ALTER TABLE intents ADD COLUMN outcome TEXT DEFAULT ''",
+            "ALTER TABLE intents ADD COLUMN correction TEXT DEFAULT ''",
+            "ALTER TABLE intents ADD COLUMN enforcement_ref TEXT DEFAULT ''"
         ]:
             try:
                 conn.execute(ddl)
                 conn.commit()
             except Exception:
                 pass
+
+        # FTS triggers for session_summaries
+        try:
+            conn.executescript("""
+            DROP TRIGGER IF EXISTS session_summaries_fts_ai;
+            DROP TRIGGER IF EXISTS session_summaries_fts_ad;
+            DROP TRIGGER IF EXISTS session_summaries_fts_au;
+            CREATE TRIGGER session_summaries_fts_ai AFTER INSERT ON session_summaries BEGIN
+                INSERT INTO session_summaries_fts(rowid, summary, session_id) VALUES (new.rowid, new.summary, new.session_id);
+            END;
+            CREATE TRIGGER session_summaries_fts_ad AFTER DELETE ON session_summaries BEGIN
+                DELETE FROM session_summaries_fts WHERE rowid = old.rowid;
+            END;
+            CREATE TRIGGER session_summaries_fts_au AFTER UPDATE ON session_summaries BEGIN
+                DELETE FROM session_summaries_fts WHERE rowid = old.rowid;
+                INSERT INTO session_summaries_fts(rowid, summary, session_id) VALUES (new.rowid, new.summary, new.session_id);
+            END;
+            """)
+            conn.commit()
+        except Exception:
+            pass
+
         # FTS triggers (idempotent via DROP+CREATE).
         try:
             conn.executescript("""
@@ -353,6 +416,98 @@ class Store:
         except Exception:
             pass
         return entries
+
+    # ── HCIL: Hierarchical Causal Intent Ledger ──
+    def create_intent(self, summary: str, detail: str = "", parent_id: int = None,
+                      attempt: str = "", outcome: str = "", correction: str = "", enforcement_ref: str = "") -> dict:
+        conn = self._get_conn()
+        cur = conn.execute(
+            "INSERT INTO intents (summary, detail, parent_id, attempt, outcome, correction, enforcement_ref, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (summary, detail, parent_id, attempt, outcome, correction, enforcement_ref, datetime.now().timestamp())
+        )
+        iid = cur.lastrowid
+        conn.commit()
+        conn.close()
+        self.log_event("intent_created", iid, "hcil", summary[:120])
+        return {"id": iid, "summary": summary, "parent_id": parent_id}
+
+    def get_intent(self, intent_id: int) -> Optional[dict]:
+        conn = self._get_conn()
+        row = conn.execute("SELECT * FROM intents WHERE id=?", (intent_id,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def list_intents(self, status: str = None) -> List[dict]:
+        conn = self._get_conn()
+        rows = conn.execute("SELECT * FROM intents ORDER BY updated_at DESC").fetchall() if not status else conn.execute("SELECT * FROM intents WHERE status=? ORDER BY updated_at DESC", (status,)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def record_causal(self, intent_id: int, relation: str, from_entry_id: int = None, to_entry_id: int = None) -> dict:
+        conn = self._get_conn()
+        cur = conn.execute("INSERT INTO causal_links (intent_id, from_entry_id, to_entry_id, relation, created_at) VALUES (?, ?, ?, ?, ?)",
+                           (intent_id, from_entry_id, to_entry_id, relation, datetime.now().timestamp()))
+        cid = cur.lastrowid
+        conn.commit()
+        conn.close()
+        return {"id": cid, "intent_id": intent_id, "relation": relation}
+
+    def upsert_session_summary(self, session_id: str, summary: str, intent_id: int = None, msg_count: int = 0) -> dict:
+        conn = self._get_conn()
+        conn.execute("INSERT OR REPLACE INTO session_summaries (session_id, summary, intent_id, msg_count, created_at) VALUES (?, ?, ?, ?, ?)",
+                     (session_id, summary, intent_id, msg_count, datetime.now().timestamp()))
+        conn.commit()
+        conn.close()
+        return {"session_id": session_id, "summary": summary}
+
+    def get_session_summary(self, session_id: str) -> Optional[dict]:
+        conn = self._get_conn()
+        row = conn.execute("SELECT * FROM session_summaries WHERE session_id=?", (session_id,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def add_okf_triple(self, entry_id: int, session_id: str, subject: str, predicate: str, obj: str, confidence: float = 1.0) -> dict:
+        conn = self._get_conn()
+        cur = conn.execute("INSERT INTO okf_triples (entry_id, session_id, subject, predicate, object, confidence, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                           (entry_id, session_id, subject, predicate, obj, confidence, datetime.now().timestamp()))
+        tid = cur.lastrowid
+        conn.commit()
+        conn.close()
+        return {"id": tid}
+
+    def hierarchical_recall(self, query: str, k: int = 5) -> List[dict]:
+        """Intent → session_summary → chunk fallback. Returns chunks with `hcil_level` tag."""
+        # 1. intent level: FTS over intents.summary
+        conn = self._get_conn()
+        intents = []
+        try:
+            rows = conn.execute("SELECT * FROM intents WHERE summary LIKE ? ORDER BY updated_at DESC LIMIT 2", (f"%{query[:20]}%",)).fetchall()
+            intents = [dict(r) for r in rows]
+        except Exception:
+            pass
+        # 2. session summary level
+        sess_hits = []
+        try:
+            toks = [t for t in query.lower().split() if len(t) >= 3][:6]
+            if toks:
+                ors = " OR ".join(f'"{t}"' for t in toks)
+                rows = conn.execute("SELECT session_id, summary FROM session_summaries_fts WHERE session_summaries_fts MATCH ? ORDER BY rank LIMIT ?", (ors, k)).fetchall()
+                sess_hits = [dict(r) for r in rows]
+        except Exception:
+            pass
+        conn.close()
+        # 3. chunk level via normal recall
+        chunks = self.recall(query, k=k)
+        # annotate levels for explainability
+        results = []
+        for it in intents:
+            results.append({"hcil_level": "intent", "summary": it["summary"], "id": it["id"], "correction": it.get("correction","")})
+        for sh in sess_hits:
+            results.append({"hcil_level": "session", "session_id": sh["session_id"], "summary": sh["summary"]})
+        for ch in chunks:
+            ch["hcil_level"] = "chunk"
+            results.append(ch)
+        return results[:k+2]
 
     def get_memory(self, entry_id: int) -> Optional[dict]:
         conn = self._get_conn()
