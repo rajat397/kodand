@@ -114,6 +114,7 @@ class Store:
         CREATE INDEX IF NOT EXISTS idx_okf_subject ON okf_triples(subject);
         CREATE INDEX IF NOT EXISTS idx_causal_intent ON causal_links(intent_id);
         CREATE VIRTUAL TABLE IF NOT EXISTS session_summaries_fts USING fts5(summary, session_id, tokenize='porter');
+        CREATE VIRTUAL TABLE IF NOT EXISTS intents_fts USING fts5(summary, detail, correction, tokenize='porter');
         -- I10: sqlite-vec hybrid (FTS lexical + vector dense) + hypervectors
         -- vec0 virtual table is created lazily in _ensure_vec() to avoid hard dep on loadable extension at init time
         """)
@@ -134,7 +135,7 @@ class Store:
             except Exception:
                 pass
 
-        # FTS triggers for session_summaries
+        # FTS triggers for session_summaries + intents
         try:
             conn.executescript("""
             DROP TRIGGER IF EXISTS session_summaries_fts_ai;
@@ -149,6 +150,19 @@ class Store:
             CREATE TRIGGER session_summaries_fts_au AFTER UPDATE ON session_summaries BEGIN
                 DELETE FROM session_summaries_fts WHERE rowid = old.rowid;
                 INSERT INTO session_summaries_fts(rowid, summary, session_id) VALUES (new.rowid, new.summary, new.session_id);
+            END;
+            DROP TRIGGER IF EXISTS intents_fts_ai;
+            DROP TRIGGER IF EXISTS intents_fts_ad;
+            DROP TRIGGER IF EXISTS intents_fts_au;
+            CREATE TRIGGER intents_fts_ai AFTER INSERT ON intents BEGIN
+                INSERT INTO intents_fts(rowid, summary, detail, correction) VALUES (new.id, new.summary, new.detail, new.correction);
+            END;
+            CREATE TRIGGER intents_fts_ad AFTER DELETE ON intents BEGIN
+                DELETE FROM intents_fts WHERE rowid = old.id;
+            END;
+            CREATE TRIGGER intents_fts_au AFTER UPDATE ON intents BEGIN
+                DELETE FROM intents_fts WHERE rowid = old.id;
+                INSERT INTO intents_fts(rowid, summary, detail, correction) VALUES (new.id, new.summary, new.detail, new.correction);
             END;
             """)
             conn.commit()
@@ -477,12 +491,16 @@ class Store:
 
     def hierarchical_recall(self, query: str, k: int = 5) -> List[dict]:
         """Intent → session_summary → chunk fallback. Returns chunks with `hcil_level` tag."""
-        # 1. intent level: FTS over intents.summary
+        # 1. intent level: FTS over intents_fts (not LIKE)
         conn = self._get_conn()
         intents = []
         try:
-            rows = conn.execute("SELECT * FROM intents WHERE summary LIKE ? ORDER BY updated_at DESC LIMIT 2", (f"%{query[:20]}%",)).fetchall()
-            intents = [dict(r) for r in rows]
+            import re as _re2
+            toks = [t for t in _re2.findall(r"[A-Za-z0-9_]+", query.lower()) if len(t) >= 3][:6]
+            if toks:
+                ors = " OR ".join(f'"{t}"' for t in toks)
+                rows = conn.execute("SELECT intents.* FROM intents_fts JOIN intents ON intents_fts.rowid = intents.id WHERE intents_fts MATCH ? ORDER BY rank LIMIT 2", (ors,)).fetchall()
+                intents = [dict(r) for r in rows]
         except Exception:
             pass
         # 2. session summary level
