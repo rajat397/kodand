@@ -450,11 +450,12 @@ class Store:
                 conn.load_extension(sqlite_vec.loadable_path())
                 qvec = self._vec_embed(query)
                 vec_rows = conn.execute(
-                    "SELECT rowid, distance FROM memories_vec WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
+                    "SELECT rowid, distance FROM memories_vec WHERE embedding MATCH ? AND k = ? ORDER BY distance",
                     (_json.dumps(qvec), k * 3),
                 ).fetchall()
                 vec_ids = [r[0] for r in vec_rows]
-            except Exception:
+            except Exception as e:
+                # print(f"vec err {e}")  # keep quiet in prod, but log for debug
                 vec_ids = []
             like = f"%{query}%"
             like_rows = conn.execute(
