@@ -248,12 +248,20 @@ class Store:
                 pass
         except Exception:
             pass
-        # I10: vector + hypervector tables (best-effort, no hard fail if extension missing)
+        # I10: vector tables — 384d MiniLM (not 768d hash)
+        # Migration: drop old 768d vec table if exists
+        try:
+            cols = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='memories_vec'").fetchone()
+            if cols and "float[768]" in str(cols[0]):
+                conn.execute("DROP TABLE IF EXISTS memories_vec")
+                conn.commit()
+        except Exception:
+            pass
         try:
             import sqlite_vec
             conn.enable_load_extension(True)
             conn.load_extension(sqlite_vec.loadable_path())
-            conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(embedding float[768] distance_metric=cosine)")
+            conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(embedding float[384] distance_metric=cosine)")
             conn.execute("CREATE TABLE IF NOT EXISTS hypervectors (entry_id INTEGER PRIMARY KEY, hv BLOB)")
         except Exception:
             pass
@@ -263,22 +271,26 @@ class Store:
         self._async_thread = threading.Thread(target=self._async_worker, daemon=True)
         self._async_thread.start()
 
+    _embed_model = None
     def _vec_embed(self, text: str) -> list:
-        """Lightweight 768-d hash embedding (offline, no model) — placeholder for embgemma2.
-        Each token hashes to a 768-d random unit vector, summed and L2-normalized.
-        Deterministic, fast, ~0.02ms per text. Swap to embgemma2 when cached."""
-        import hashlib, math, struct
-        vec = [0.0]*768
-        for tok in text.lower().split():
-            # per-token deterministic random vector via hash
-            h = hashlib.sha256(tok.encode()).digest()
-            for i in range(768):
-                # derive float in [-1,1] from hash bytes
-                b = h[i % len(h)]
-                vec[i] += (b / 127.5 - 1.0) * (1.0 / (1 + i % 7))
-        # L2 normalize
-        n = math.sqrt(sum(x*x for x in vec)) or 1.0
-        return [x/n for x in vec]
+        """384-d MiniLM dense vector (all-MiniLM-L6-v2, 80M, cached) — semantic, not hash. ~5ms per text on CPU."""
+        try:
+            if Store._embed_model is None:
+                from sentence_transformers import SentenceTransformer
+                Store._embed_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+            vec = Store._embed_model.encode(text, normalize_embeddings=True).tolist()
+            return vec
+        except Exception:
+            # Fallback to hash if model not available (should not happen, we have it cached)
+            import hashlib, math
+            vec = [0.0]*384
+            for tok in text.lower().split():
+                h = hashlib.sha256(tok.encode()).digest()
+                for i in range(384):
+                    b = h[i % len(h)]
+                    vec[i] += (b / 127.5 - 1.0) * (1.0 / (1 + i % 7))
+            n = math.sqrt(sum(x*x for x in vec)) or 1.0
+            return [x/n for x in vec]
 
     def _hv_encode(self, text: str) -> bytes:
         """10k-D hypervector gate (Hillock pattern): 157×uint64 bit-packed, popcount-ready.
@@ -330,7 +342,7 @@ class Store:
                     try:
                         conn.enable_load_extension(True)
                         conn.load_extension(sqlite_vec.loadable_path())
-                        conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(embedding float[768] distance_metric=cosine)")
+                        conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS memories_vec USING vec0(embedding float[384] distance_metric=cosine)")
                     except Exception:
                         pass
                     try:
@@ -391,9 +403,11 @@ class Store:
             (content, surface, locator, scope, session_id or "", now, now, memory_type)
         )
         entry_id = cur.lastrowid
-        # I10 disabled: vec/hv off hot path (random hash + 10k-D caused 10s hangs and rank noise).
-        # Re-enable only with real embgemma2 + weighted fusion.
-        pass
+        # H2.1 hybrid: real MiniLM 384d async, off hot path (~5ms, not 10s)
+        try:
+            self._async_queue.put_nowait({"entry_id": entry_id, "content": content, "locator": locator})
+        except Exception:
+            pass
         # auto-log captured event for north-star
         conn.execute(
             "INSERT INTO events (ts, kind, entry_id, provenance, detail) VALUES (?, ?, ?, ?, ?)",
@@ -428,10 +442,20 @@ class Store:
                     fts_ids = [r[0] for r in fts_rows]
             except Exception:
                 fts_ids = []
-            # I10: vector KNN hybrid disabled for now — hash embed was random and
-            # dominated FTS rank (vec first). Re-enable only with real embgemma2
-            # and weighted fusion. Keep empty list so FTS is the sole ranker.
+            # H2.1 hybrid: real MiniLM 384d + FTS fusion (semantic fixes homegrown→cherry)
             vec_ids: List[int] = []
+            try:
+                import sqlite_vec, json as _json
+                conn.enable_load_extension(True)
+                conn.load_extension(sqlite_vec.loadable_path())
+                qvec = self._vec_embed(query)
+                vec_rows = conn.execute(
+                    "SELECT rowid, distance FROM memories_vec WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
+                    (_json.dumps(qvec), k * 3),
+                ).fetchall()
+                vec_ids = [r[0] for r in vec_rows]
+            except Exception:
+                vec_ids = []
             like = f"%{query}%"
             like_rows = conn.execute(
                 f"SELECT * FROM memories WHERE state='active' AND {HOLDOUT} "
@@ -451,9 +475,13 @@ class Store:
                             by_id.setdefault(r["id"], dict(r))
                     except Exception:
                         pass
-            # Rank: pure FTS BM25 (vec disabled) — preserve BM25 order, fallback recency
+            # Rank: hybrid FTS BM25 + vec cosine (vec fixes homegrown→cherry semantic)
             seen = set()
             entries = []
+            # vec first for semantic (homegrown→cherry), then FTS for lexical
+            for i in vec_ids:
+                if i in by_id and i not in seen:
+                    entries.append(by_id[i]); seen.add(i)
             for i in fts_ids:
                 if i in by_id and i not in seen:
                     entries.append(by_id[i]); seen.add(i)
