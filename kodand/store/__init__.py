@@ -77,6 +77,7 @@ class Store:
             session_id TEXT,
             claim_text TEXT NOT NULL,
             subject TEXT, predicate TEXT, object TEXT,
+            entity_type TEXT DEFAULT '',
             valid_time TEXT, transaction_time REAL, confidence REAL,
             source_hash TEXT
         );
@@ -126,7 +127,7 @@ class Store:
         CREATE INDEX IF NOT EXISTS idx_causal_intent ON causal_links(intent_id);
         CREATE VIRTUAL TABLE IF NOT EXISTS session_summaries_fts USING fts5(summary, session_id, tokenize='porter');
         CREATE VIRTUAL TABLE IF NOT EXISTS intents_fts USING fts5(summary, detail, correction, tokenize='porter');
-        CREATE VIRTUAL TABLE IF NOT EXISTS atomic_claims_fts USING fts5(claim_text, session_id, subject, object, tokenize='porter');
+        CREATE VIRTUAL TABLE IF NOT EXISTS atomic_claims_fts USING fts5(claim_text, session_id, subject, object, entity_type, tokenize='porter');
         -- I10: sqlite-vec hybrid (FTS lexical + vector dense) + hypervectors
         -- vec0 virtual table is created lazily in _ensure_vec() to avoid hard dep on loadable extension at init time
         """)
@@ -180,39 +181,43 @@ class Store:
             DROP TRIGGER IF EXISTS atomic_claims_fts_ad;
             DROP TRIGGER IF EXISTS atomic_claims_fts_au;
             CREATE TRIGGER atomic_claims_fts_ai AFTER INSERT ON atomic_claims BEGIN
-                INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object);
+                INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object, entity_type) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object, new.entity_type);
             END;
             CREATE TRIGGER atomic_claims_fts_ad AFTER DELETE ON atomic_claims BEGIN
                 DELETE FROM atomic_claims_fts WHERE rowid = old.id;
             END;
             CREATE TRIGGER atomic_claims_fts_au AFTER UPDATE ON atomic_claims BEGIN
                 DELETE FROM atomic_claims_fts WHERE rowid = old.id;
-                INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object);
+                INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object, entity_type) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object, new.entity_type);
             END;
             """)
             conn.commit()
-            # Migration for atomic_claims_fts schema change (add session_id)
+            # Migration for atomic_claims_fts schema change (add session_id, entity_type)
             try:
                 cols = [r[1] for r in conn.execute("PRAGMA table_info(atomic_claims_fts)").fetchall()]
-                if "session_id" not in cols:
+                if "entity_type" not in cols:
                     conn.execute("DROP TABLE IF EXISTS atomic_claims_fts")
-                    conn.execute("CREATE VIRTUAL TABLE atomic_claims_fts USING fts5(claim_text, session_id, subject, object, tokenize='porter')")
+                    conn.execute("CREATE VIRTUAL TABLE atomic_claims_fts USING fts5(claim_text, session_id, subject, object, entity_type, tokenize='porter')")
                     conn.executescript("""
                     DROP TRIGGER IF EXISTS atomic_claims_fts_ai;
                     DROP TRIGGER IF EXISTS atomic_claims_fts_ad;
                     DROP TRIGGER IF EXISTS atomic_claims_fts_au;
                     CREATE TRIGGER atomic_claims_fts_ai AFTER INSERT ON atomic_claims BEGIN
-                        INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object);
+                        INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object, entity_type) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object, new.entity_type);
                     END;
                     CREATE TRIGGER atomic_claims_fts_ad AFTER DELETE ON atomic_claims BEGIN
                         DELETE FROM atomic_claims_fts WHERE rowid = old.id;
                     END;
                     CREATE TRIGGER atomic_claims_fts_au AFTER UPDATE ON atomic_claims BEGIN
                         DELETE FROM atomic_claims_fts WHERE rowid = old.id;
-                        INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object);
+                        INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object, entity_type) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object, new.entity_type);
                     END;
                     """)
                     conn.execute("INSERT INTO atomic_claims_fts(atomic_claims_fts) VALUES('rebuild')")
+                    conn.commit()
+                cols2 = [r[1] for r in conn.execute("PRAGMA table_info(atomic_claims)").fetchall()]
+                if "entity_type" not in cols2:
+                    conn.execute("ALTER TABLE atomic_claims ADD COLUMN entity_type TEXT DEFAULT ''")
                     conn.commit()
             except Exception:
                 pass
@@ -568,12 +573,12 @@ class Store:
         conn.close()
         return {"id": tid}
 
-    def add_atomic_claim(self, entry_id: int, session_id: str, claim_text: str, subject: str = "", predicate: str = "", obj: str = "", valid_time: str = "", confidence: float = 0.9) -> dict:
+    def add_atomic_claim(self, entry_id: int, session_id: str, claim_text: str, subject: str = "", predicate: str = "", obj: str = "", entity_type: str = "", valid_time: str = "", confidence: float = 0.9) -> dict:
         import hashlib
         h = hashlib.sha256(claim_text.encode()).hexdigest()[:12]
         conn = self._get_conn()
-        cur = conn.execute("INSERT INTO atomic_claims (entry_id, session_id, claim_text, subject, predicate, object, valid_time, transaction_time, confidence, source_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                           (entry_id, session_id, claim_text, subject, predicate, obj, valid_time, datetime.now().timestamp(), confidence, h))
+        cur = conn.execute("INSERT INTO atomic_claims (entry_id, session_id, claim_text, subject, predicate, object, entity_type, valid_time, transaction_time, confidence, source_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                           (entry_id, session_id, claim_text, subject, predicate, obj, entity_type, valid_time, datetime.now().timestamp(), confidence, h))
         cid = cur.lastrowid
         conn.commit()
         conn.close()
