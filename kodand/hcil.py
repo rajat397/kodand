@@ -93,11 +93,21 @@ def extract_atomic_claims(content: str, entry_id: int, session_id: str, valid_ti
     return claims
 
 def consolidate_session(repo_path: str, session_id: str, messages: List[Dict], intent_id: int = None):
-    """Called at ingest: create session_summary only (H2.2 lazy - atomic/okf at query time, not ingest)."""
+    """Called at ingest: session_summary + atomic claims staged with entity_type (H1.1+H1.2)."""
     store = get_store(repo_path)
     summary = summarize_session(messages)
     store.upsert_session_summary(session_id, summary, intent_id, len(messages))
-    # H2.2: don't store okf/atomic at ingest — discover lazily at search and cache validated
+    for m in messages:
+        for c in extract_atomic_claims(m["content"], 0, session_id, valid_time=""):
+            try:
+                store.add_atomic_claim(0, session_id, c["claim_text"], c["subject"], c["predicate"], c["object"], c.get("entity_type",""), c["valid_time"], c["confidence"])
+            except Exception:
+                pass
+        for t in extract_okf_triples(m["content"], 0, session_id):
+            try:
+                store.add_okf_triple(0, session_id, t["subject"], t["predicate"], t["object"], t["confidence"])
+            except Exception:
+                pass
     return summary
 
 def discover_relations(query: str, entries: List[Dict], session_id: str = "") -> List[Dict]:
