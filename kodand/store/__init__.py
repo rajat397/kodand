@@ -71,6 +71,15 @@ class Store:
             confidence REAL DEFAULT 1.0,
             created_at REAL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS atomic_claims (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_id INTEGER REFERENCES memories(id),
+            session_id TEXT,
+            claim_text TEXT NOT NULL,
+            subject TEXT, predicate TEXT, object TEXT,
+            valid_time TEXT, transaction_time REAL, confidence REAL,
+            source_hash TEXT
+        );
         CREATE TABLE IF NOT EXISTS causal_links (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             intent_id INTEGER REFERENCES intents(id) NOT NULL,
@@ -112,9 +121,12 @@ class Store:
         CREATE INDEX IF NOT EXISTS idx_session_summaries_intent ON session_summaries(intent_id);
         CREATE INDEX IF NOT EXISTS idx_okf_session ON okf_triples(session_id);
         CREATE INDEX IF NOT EXISTS idx_okf_subject ON okf_triples(subject);
+        CREATE INDEX IF NOT EXISTS idx_atomic_session ON atomic_claims(session_id);
+        CREATE INDEX IF NOT EXISTS idx_atomic_subject ON atomic_claims(subject);
         CREATE INDEX IF NOT EXISTS idx_causal_intent ON causal_links(intent_id);
         CREATE VIRTUAL TABLE IF NOT EXISTS session_summaries_fts USING fts5(summary, session_id, tokenize='porter');
         CREATE VIRTUAL TABLE IF NOT EXISTS intents_fts USING fts5(summary, detail, correction, tokenize='porter');
+        CREATE VIRTUAL TABLE IF NOT EXISTS atomic_claims_fts USING fts5(claim_text, session_id, subject, object, tokenize='porter');
         -- I10: sqlite-vec hybrid (FTS lexical + vector dense) + hypervectors
         -- vec0 virtual table is created lazily in _ensure_vec() to avoid hard dep on loadable extension at init time
         """)
@@ -164,8 +176,46 @@ class Store:
                 DELETE FROM intents_fts WHERE rowid = old.id;
                 INSERT INTO intents_fts(rowid, summary, detail, correction) VALUES (new.id, new.summary, new.detail, new.correction);
             END;
+            DROP TRIGGER IF EXISTS atomic_claims_fts_ai;
+            DROP TRIGGER IF EXISTS atomic_claims_fts_ad;
+            DROP TRIGGER IF EXISTS atomic_claims_fts_au;
+            CREATE TRIGGER atomic_claims_fts_ai AFTER INSERT ON atomic_claims BEGIN
+                INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object);
+            END;
+            CREATE TRIGGER atomic_claims_fts_ad AFTER DELETE ON atomic_claims BEGIN
+                DELETE FROM atomic_claims_fts WHERE rowid = old.id;
+            END;
+            CREATE TRIGGER atomic_claims_fts_au AFTER UPDATE ON atomic_claims BEGIN
+                DELETE FROM atomic_claims_fts WHERE rowid = old.id;
+                INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object);
+            END;
             """)
             conn.commit()
+            # Migration for atomic_claims_fts schema change (add session_id)
+            try:
+                cols = [r[1] for r in conn.execute("PRAGMA table_info(atomic_claims_fts)").fetchall()]
+                if "session_id" not in cols:
+                    conn.execute("DROP TABLE IF EXISTS atomic_claims_fts")
+                    conn.execute("CREATE VIRTUAL TABLE atomic_claims_fts USING fts5(claim_text, session_id, subject, object, tokenize='porter')")
+                    conn.executescript("""
+                    DROP TRIGGER IF EXISTS atomic_claims_fts_ai;
+                    DROP TRIGGER IF EXISTS atomic_claims_fts_ad;
+                    DROP TRIGGER IF EXISTS atomic_claims_fts_au;
+                    CREATE TRIGGER atomic_claims_fts_ai AFTER INSERT ON atomic_claims BEGIN
+                        INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object);
+                    END;
+                    CREATE TRIGGER atomic_claims_fts_ad AFTER DELETE ON atomic_claims BEGIN
+                        DELETE FROM atomic_claims_fts WHERE rowid = old.id;
+                    END;
+                    CREATE TRIGGER atomic_claims_fts_au AFTER UPDATE ON atomic_claims BEGIN
+                        DELETE FROM atomic_claims_fts WHERE rowid = old.id;
+                        INSERT INTO atomic_claims_fts(rowid, claim_text, session_id, subject, object) VALUES (new.id, new.claim_text, new.session_id, new.subject, new.object);
+                    END;
+                    """)
+                    conn.execute("INSERT INTO atomic_claims_fts(atomic_claims_fts) VALUES('rebuild')")
+                    conn.commit()
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -489,6 +539,17 @@ class Store:
         conn.close()
         return {"id": tid}
 
+    def add_atomic_claim(self, entry_id: int, session_id: str, claim_text: str, subject: str = "", predicate: str = "", obj: str = "", valid_time: str = "", confidence: float = 0.9) -> dict:
+        import hashlib
+        h = hashlib.sha256(claim_text.encode()).hexdigest()[:12]
+        conn = self._get_conn()
+        cur = conn.execute("INSERT INTO atomic_claims (entry_id, session_id, claim_text, subject, predicate, object, valid_time, transaction_time, confidence, source_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                           (entry_id, session_id, claim_text, subject, predicate, obj, valid_time, datetime.now().timestamp(), confidence, h))
+        cid = cur.lastrowid
+        conn.commit()
+        conn.close()
+        return {"id": cid, "claim_text": claim_text}
+
     def hierarchical_recall(self, query: str, k: int = 5) -> List[dict]:
         """Intent → session_summary → chunk fallback. Returns chunks with `hcil_level` tag."""
         # 1. intent level: FTS over intents_fts (not LIKE)
@@ -513,8 +574,18 @@ class Store:
                 sess_hits = [dict(r) for r in rows]
         except Exception:
             pass
+        # 3. atomic claims level (H1.1 staged, self-contained)
+        atomic_hits = []
+        try:
+            toks = [t for t in query.lower().split() if len(t) >= 3][:6]
+            if toks:
+                ors = " OR ".join(f'"{t}"' for t in toks)
+                rows = conn.execute("SELECT claim_text, session_id, subject, object FROM atomic_claims_fts WHERE atomic_claims_fts MATCH ? ORDER BY rank LIMIT ?", (ors, k)).fetchall()
+                atomic_hits = [dict(r) for r in rows]
+        except Exception:
+            pass
         conn.close()
-        # 3. chunk level via normal recall
+        # 4. chunk level via normal recall
         chunks = self.recall(query, k=k)
         # annotate levels for explainability
         results = []
@@ -522,10 +593,12 @@ class Store:
             results.append({"hcil_level": "intent", "summary": it["summary"], "id": it["id"], "correction": it.get("correction","")})
         for sh in sess_hits:
             results.append({"hcil_level": "session", "session_id": sh["session_id"], "summary": sh["summary"]})
+        for ah in atomic_hits:
+            results.append({"hcil_level": "atomic", "claim_text": ah["claim_text"], "session_id": ah["session_id"], "subject": ah["subject"]})
         for ch in chunks:
             ch["hcil_level"] = "chunk"
             results.append(ch)
-        return results[:k+2]
+        return results[:k+3]
 
     def get_memory(self, entry_id: int) -> Optional[dict]:
         conn = self._get_conn()

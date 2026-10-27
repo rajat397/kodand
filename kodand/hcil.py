@@ -45,8 +45,26 @@ def extract_okf_triples(content: str, entry_id: int, session_id: str) -> List[Di
                     triples.append({"entry_id": entry_id, "session_id": session_id, "subject": "user", "predicate": "prefers", "object": c.lower(), "confidence": 0.9})
     return triples
 
+def extract_atomic_claims(content: str, entry_id: int, session_id: str, valid_time: str = "") -> List[Dict]:
+    """H1.1 staged atomic claims: self-contained sentences, not triples. Validated stages."""
+    claims = []
+    # Stage 1: sentence split, keep self-contained with subject
+    sentences = re.split(r"[.!?]\s+", content)
+    for sent in sentences:
+        s = sent.strip()
+        if len(s) < 20 or len(s) > 300:
+            continue
+        # Stage 2: must have subject+predicate (user ... like/attend/fixed)
+        if re.search(r"\b(I|user)\b.*\b(like|attend|take|fixed|replaced|cleaned)\b", s, re.I):
+            # Stage 3: keep raw + parsed
+            subj = "user"
+            pred = "prefers" if "like" in s.lower() else "attends" if "attend" in s.lower() else "did"
+            obj = s[:60].lower()
+            claims.append({"entry_id": entry_id, "session_id": session_id, "claim_text": s, "subject": subj, "predicate": pred, "object": obj, "valid_time": valid_time, "confidence": 0.9})
+    return claims
+
 def consolidate_session(repo_path: str, session_id: str, messages: List[Dict], intent_id: int = None):
-    """Called at ingest: create session_summary + OKF triples deterministically."""
+    """Called at ingest: create session_summary + OKF triples + atomic claims deterministically."""
     store = get_store(repo_path)
     summary = summarize_session(messages)
     store.upsert_session_summary(session_id, summary, intent_id, len(messages))
@@ -56,10 +74,15 @@ def consolidate_session(repo_path: str, session_id: str, messages: List[Dict], i
                 store.add_okf_triple(0, session_id, t["subject"], t["predicate"], t["object"], t["confidence"])
             except Exception:
                 pass
+        # H1.1 atomic claims staged
+        for c in extract_atomic_claims(m["content"], 0, session_id, valid_time=m.get("date","")):
+            try:
+                store.add_atomic_claim(0, session_id, c["claim_text"], c["subject"], c["predicate"], c["object"], c["valid_time"], c["confidence"])
+            except Exception:
+                pass
     # Seed ledger intent deterministically if session contains a count list + days (e.g., fitness schedule)
     try:
         if "like" in summary.lower() and "days:" in summary and len(summary.split("entities:")) > 1:
-            # create a count intent for this session if not already exists
             existing = [i for i in store.list_intents() if session_id in i.get("detail","")]
             if not existing:
                 store.create_intent(f"count {session_id}", detail=session_id, attempt=summary[:80], outcome="count", correction=summary, enforcement_ref=session_id)
