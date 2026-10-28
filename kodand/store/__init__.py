@@ -282,7 +282,7 @@ class Store:
         try:
             if Store._embed_model is None:
                 from sentence_transformers import SentenceTransformer
-                Store._embed_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+                Store._embed_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", local_files_only=True, device="cpu")
             vec = Store._embed_model.encode(text, normalize_embeddings=True).tolist()
             return vec
         except Exception:
