@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HCIL — From First Principles: Why Retrieval Fails When The Answer Is There</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet" type="text/css" />
+<style>
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .card { border: 1px solid #e5e7eb; }
+</style>
+</head>
+<body class="bg-[#fafaf8] text-zinc-900">
+<div class="max-w-[1100px] mx-auto px-6 py-8">
+
+<!-- Header -->
+<div class="mb-8">
+  <div class="text-[11px] tracking-[0.18em] text-zinc-500 uppercase">Kodand · HCIL · Lavish Explainer</div>
+  <h1 class="text-[32px] font-[700] leading-tight mt-2">From first principles: where the answer lives, where we look, and why we miss</h1>
+  <div class="bg-red-50 border-2 border-red-300 rounded-xl p-4 mt-4">
+    <div class="text-[13px] font-bold text-red-800">🚨 FUNDAMENTAL FLAW — You spotted it: query has ZERO lexical overlap with answer</div>
+    <div class="text-[13px] text-zinc-800 mt-2"><span class="font-semibold">Query:</span> “What should I serve for dinner this weekend with my <span class="bg-yellow-200 px-1">homegrown ingredients</span>?” — contains <span class="mono bg-white px-1">dinner, weekend, homegrown, ingredients</span></div>
+    <div class="text-[13px] text-zinc-800"><span class="font-semibold">Answer chunk:</span> “I've even harvested some <span class="bg-yellow-200 px-1">cherry tomatoes</span> from my garden.” — contains <span class="mono bg-white px-1">cherry, tomatoes, garden, basil, mint</span></div>
+    <div class="text-[13px] text-red-800 mt-2 font-semibold">Overlap = 0 words. FTS OR on 12 toks can NEVER rank it top 15 — it’s a semantic gap, not a BM25 tuning gap. This is why Hit 0 for 11/14.</div>
+    <div class="text-[12px] text-zinc-700 mt-1">Why RAG + HCIL + OKF didn't help: <span class="mono">memories_fts porter</span> + <span class="mono">session_summaries_fts</span> + <span class="mono">atomic_claims_fts</span> are ALL lexical FTS. OKF `like X,Y` needs “like” in query — dinner query has no “like”. HCIL session summary `[5:25 pm] creating a web app…` also has no cherry. No vector, no semantic.</div>
+    <div class="text-[12px] font-bold text-red-800 mt-2">Fix foremost: hybrid dense vectors (sqlite-vec embgemma2 768d) + late-interaction re-rank, so “homegrown ingredients” ↔ “cherry tomatoes from my garden” are close in vector space, then re-rank BM25 0.3. That's H2.1 hybrid, not more FTS.</div>
+  </div>
+  <p class="text-zinc-600 mt-3 max-w-[820px]">We don’t store whole conversations. We store 475 per-message pieces for 47 sessions, then ask FTS to find 10. The 11/14 failures are not “model is dumb” — they are <span class="font-semibold">Hit 0</span> (the piece was never inserted) vs <span class="font-semibold">Hit 1 but wrong</span> (it was inserted, reasoning failed). Examples use your real `2788b940` and `06f04340` runs.</p>
+  <div class="flex gap-2 mt-4 text-[12px]">
+    <span class="badge badge-outline">bridge.db · memories_fts BM25</span>
+    <span class="badge badge-outline">chunkText [sessionId date] → locator sessionId#i</span>
+    <span class="badge badge-outline">report.json Hit/MRR</span>
+  </div>
+</div>
+
+<!-- 4 Pillars -->
+<div class="grid grid-cols-4 gap-3 mb-8">
+  <div class="card bg-white rounded-xl p-4">
+    <div class="text-[11px] tracking-widest text-zinc-500 uppercase">Answerable</div>
+    <div class="text-[22px] font-bold">GT in haystack</div>
+    <div class="text-[13px] text-zinc-600 mt-1">Perfect retriever <em>could</em> answer. <span class="mono bg-zinc-100 px-1">haystack_sessions[47]</span> has it.</div>
+    <div class="text-[12px] mt-2"><span class="text-emerald-600">●</span> 2788b940 `like Zumba…`</div>
+  </div>
+  <div class="card bg-white rounded-xl p-4">
+    <div class="text-[11px] tracking-widest text-zinc-500 uppercase">Available vs Inserted</div>
+    <div class="text-[22px] font-bold">475 rows ≠ 10 inserted</div>
+    <div class="text-[13px] text-zinc-600 mt-1"><span class="mono">available</span> = in 475 rows. <span class="mono">inserted</span> = in top 10 `searchResults`.</div>
+    <div class="text-[12px] mt-2"><span class="text-amber-600">●</span> 06f04340 cherry row 140</div>
+  </div>
+  <div class="card bg-white rounded-xl p-4">
+    <div class="text-[11px] tracking-widest text-zinc-500 uppercase">Not answerable</div>
+    <div class="text-[22px] font-bold">GT not in haystack</div>
+    <div class="text-[13px] text-zinc-600 mt-1">Even perfect retrieval can’t find it.</div>
+    <div class="text-[12px] mt-2"><span class="text-zinc-500">●</span> eeda8a6d_abs 30-gallon 0 hits</div>
+  </div>
+  <div class="card bg-white rounded-xl p-4 border-amber-200">
+    <div class="text-[11px] tracking-widest text-amber-700 uppercase">Unanswerable by design</div>
+    <div class="text-[22px] font-bold">Test abstain</div>
+    <div class="text-[13px] text-zinc-600 mt-1">Benchmark <em>wants</em> `I don't know`. GT = `not enough…`</div>
+    <div class="text-[12px] mt-2"><span class="text-amber-600">●</span> eeda8a6d_abs judge now `correct`</div>
+  </div>
+</div>
+
+<!-- Diagram: Where we store vs where we fetch -->
+<div class="card bg-white rounded-xl p-6 mb-6">
+  <h2 class="text-[15px] font-bold tracking-wide">Where we store vs where we fetch — one picture</h2>
+  <div class="grid grid-cols-12 gap-6 mt-5">
+    <div class="col-span-5">
+      <!-- SVG Diagram -->
+      <svg viewBox="0 0 460 300" class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
+        <!-- Haystack -->
+        <rect x="10" y="20" width="140" height="220" rx="8" fill="#f4f4f5" stroke="#e4e4e7"/>
+        <text x="80" y="40" text-anchor="middle" font-size="11" font-weight="700" fill="#52525b">HAYSTACK</text>
+        <text x="80" y="54" text-anchor="middle" font-size="9" fill="#71717a">47 sessions</text>
+        <!-- sessions -->
+        <rect x="22" y="66" width="116" height="22" rx="5" fill="white" stroke="#e4e4e7"/><text x="80" y="81" text-anchor="middle" font-size="8" fill="#71717a">session-1  (10 msgs)</text>
+        <rect x="22" y="94" width="116" height="22" rx="5" fill="white" stroke="#e4e4e7"/><text x="80" y="109" text-anchor="middle" font-size="8" fill="#71717a">session-16 (14 msgs)</text>
+        <rect x="22" y="122" width="116" height="22" rx="5" fill="white" stroke="#e4e4e7"/><text x="80" y="137" text-anchor="middle" font-size="8" fill="#71717a">session-28 (12 msgs)</text>
+        <text x="80" y="160" text-anchor="middle" font-size="9" fill="#a1a1aa">… 47 total …</text>
+        <text x="80" y="180" text-anchor="middle" font-size="8" fill="#52525b">475 msgs total</text>
+        <text x="80" y="195" text-anchor="middle" font-size="7" fill="#71717a">not 47 blobs</text>
+        <!-- Arrow ingest -->
+        <line x1="150" y1="140" x2="190" y2="140" stroke="#52525b" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <text x="170" y="132" text-anchor="middle" font-size="7" fill="#52525b">ingest</text>
+        <text x="170" y="152" text-anchor="middle" font-size="6" fill="#71717a">chunkText</text>
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52525b"/></marker></defs>
+        <!-- Bridge DB -->
+        <rect x="190" y="60" width="130" height="160" rx="8" fill="#fffbeb" stroke="#fde68a"/>
+        <text x="255" y="80" text-anchor="middle" font-size="11" font-weight="700" fill="#92400e">bridge.db</text>
+        <text x="255" y="94" text-anchor="middle" font-size="8" fill="#b45309">memories 475 rows</text>
+        <text x="255" y="106" text-anchor="middle" font-size="7" fill="#a16207">locator sessionId#i</text>
+        <rect x="200" y="116" width="110" height="18" rx="4" fill="white" stroke="#fde68a"/><text x="255" y="128" text-anchor="middle" font-size="7" fill="#92400e">memories_fts BM25 porter</text>
+        <rect x="200" y="140" width="110" height="18" rx="4" fill="white" stroke="#fde68a"/><text x="255" y="152" text-anchor="middle" font-size="7" fill="#92400e">session_summaries_fts</text>
+        <rect x="200" y="164" width="110" height="18" rx="4" fill="white" stroke="#e4e4e7"/><text x="255" y="176" text-anchor="middle" font-size="7" fill="#a1a1aa">atomic_claims_fts</text>
+        <text x="255" y="198" text-anchor="middle" font-size="7" fill="#a16207">475 rows, not 47</text>
+        <!-- Arrow search -->
+        <line x1="320" y1="140" x2="360" y2="140" stroke="#52525b" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <text x="340" y="132" text-anchor="middle" font-size="7" fill="#52525b">FTS OR 12 toks</text>
+        <text x="340" y="152" text-anchor="middle" font-size="6" fill="#71717a">bm25 LIMIT 15</text>
+        <!-- Top 10 -->
+        <rect x="360" y="70" width="90" height="140" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+        <text x="405" y="90" text-anchor="middle" font-size="9" font-weight="700" fill="#1e40af">TOP 10</text>
+        <text x="405" y="102" text-anchor="middle" font-size="7" fill="#3b82f6">searchResults</text>
+        <text x="405" y="114" text-anchor="middle" font-size="7" fill="#60a5fa">report.json Hit/MRR</text>
+        <rect x="370" y="124" width="70" height="14" rx="3" fill="white" stroke="#bfdbfe"/><text x="405" y="134" text-anchor="middle" font-size="6" fill="#1e40af">#1 used books</text>
+        <rect x="370" y="142" width="70" height="14" rx="3" fill="#fef3c7" stroke="#fde68a"/><text x="405" y="152" text-anchor="middle" font-size="6" fill="#92400e">#? cherry (missed)</text>
+        <text x="405" y="172" text-anchor="middle" font-size="7" fill="#1e40af">10 inserted</text>
+        <text x="405" y="184" text-anchor="middle" font-size="7" fill="#60a5fa">465 not inserted</text>
+      </svg>
+      <div class="mono text-[11px] text-zinc-600 mt-2">store/__init__.py:80 memories_fts · index.ts:47 chunkText [sessionId date]\nrole: content · locator sessionId#i</div>
+    </div>
+    <div class="col-span-7 flex flex-col gap-3">
+      <div class="bg-zinc-900 text-zinc-100 rounded-lg p-4 mono text-[12px] leading-5">
+        <div class="text-zinc-400">// store per-message, not per-conversation</div>
+        <div>rows.push({</div>
+        <div class="pl-4">title: `${sessionId}#${i}`,</div>
+        <div class="pl-4">content: `[${sessionId} 12:29 am on 23 May]\\nuser: I've even harvested...`,</div>
+        <div class="pl-4">locator: `${sessionId}#${i}`</div>
+        <div>}) // 475 rows for 2788b940, not 47</div>
+        <div class="text-zinc-400 mt-2">// fetch is FTS BM25, not haystack scan</div>
+        <div>toks = query → 12 toks → OR "what" OR "should"... </div>
+        <div>SELECT rowid FROM memories_fts WHERE MATCH ? ORDER BY bm25 LIMIT 15</div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-[12px]">
+        <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+          <div class="font-bold text-emerald-800">Available</div>
+          <div class="text-zinc-700">In 475 rows (haystack ingested).</div>
+          <div class="mono text-[11px] mt-1">SELECT * WHERE content LIKE '%cherry%'</div>
+          <div class="text-emerald-700 mt-1">→ 14 rows for session-16, row 140 exists</div>
+        </div>
+        <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
+          <div class="font-bold text-sky-800">Inserted</div>
+          <div class="text-zinc-700">In top 10 searchResults fed to LLM.</div>
+          <div class="mono text-[11px] mt-1">report.json: searchResults[0..9]</div>
+          <div class="text-sky-700 mt-1">06f04340: Hit 0 → not inserted</div>
+        </div>
+        <div class="bg-zinc-50 border border-zinc-200 rounded-lg p-3">
+          <div class="font-bold">Not answerable</div>
+          <div class="text-zinc-700">Not even in 475.</div>
+          <div class="mono text-[11px] mt-1">eeda8a6d_abs: 0 hits for '30-gallon'</div>
+          <div class="text-zinc-600 mt-1">GT = not enough → abstain correct</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Example breakdown: 06f04340 -->
+<div class="card bg-white rounded-xl p-6 mb-6">
+  <div class="flex items-center gap-3">
+    <span class="badge badge-warning">Example A — Available but not inserted (retrieval failed)</span>
+    <span class="mono text-xs">06f04340 · dinner with homegrown · Hit 0 MRR 0.00</span>
+  </div>
+  <div class="grid grid-cols-2 gap-6 mt-4">
+    <div>
+      <div class="text-[11px] tracking-widest text-zinc-500 uppercase">Haystack (available)</div>
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mono text-[12px] mt-2 leading-5">
+        <div class="text-amber-800">haystack_sessions[16] (14 msgs)</div>
+        <div>user: <span class="bg-yellow-200 px-1">I've even harvested some cherry tomatoes</span> from my garden.</div>
+        <div>→ companion plants for tomatoes</div>
+        <div class="mt-2 text-zinc-600">+ 8 more basil/mint hits in same session</div>
+        <div class="text-[11px] text-zinc-500 mt-2">benchmarks/longmemeval/datasets/questions/06f04340.json:16</div>
+        <div class="text-emerald-700 text-[11px] mt-1">✔︎ 9 hits for cherry|basil in haystack → answerable</div>
+      </div>
+      <div class="bg-zinc-900 text-zinc-200 rounded-lg p-3 mono text-[11px] mt-3 leading-4">
+        <div class="text-zinc-400">DB has it:</div>
+        <div>SELECT * FROM memories WHERE locator LIKE '%06f04340-session-16%'</div>
+        <div class="text-emerald-400">→ 14 rows, row 140 = cherry tomatoes exists</div>
+      </div>
+    </div>
+    <div>
+      <div class="text-[11px] tracking-widest text-sky-700 uppercase">Inserted (top 10) — missed</div>
+      <div class="bg-sky-50 border border-sky-200 rounded-lg p-3 mono text-[12px] mt-2 leading-5">
+        <div class="text-sky-800">FTS query 12 toks:</div>
+        <div>"what" OR "should" OR "serve" OR "for" OR "dinner" OR "this" OR "weekend" OR "with" OR "my" OR "homegrown" OR "ingredients"</div>
+        <div class="mt-2">bm25 top15 rowids: [327, 244, 311, 313, 208]</div>
+        <div>cherry row 140 <span class="bg-red-100 text-red-800 px-1">not in top15? False</span> → rank &gt;15</div>
+        <div class="mt-2 text-sky-700">report.json: searchResults[0] = session-28 used books</div>
+        <div class="text-[11px] text-zinc-500">lexical gap: dinner/weekend/homegrown vs cherry</div>
+        <div class="bg-red-50 border border-red-200 rounded-lg p-2 mt-2 text-[12px]"><span class="font-bold text-red-700">Hit 0</span> → HYP `I don't know` (correct abstain, but `Hit 0` proves retrieval failed, not reasoning)</div>
+      </div>
+    </div>
+  </div>
+  <div class="flex gap-2 mt-4 mono text-[11px]">
+    <span class="bg-zinc-900 text-white px-2 py-1 rounded">store/__init__.py:287 FTS OR 12 toks → LIMIT 15</span>
+    <span class="bg-white border px-2 py-1 rounded">report.json:Hit 0 MRR 0.00</span>
+  </div>
+</div>
+
+<!-- Example B: inserted but wrong -->
+<div class="card bg-white rounded-xl p-6 mb-6">
+  <div class="flex items-center gap-3">
+    <span class="badge badge-info">Example B — Available and inserted, but wrong (reasoning failed)</span>
+    <span class="mono text-xs">2788b940 · fitness · Hit 1 MRR 0.50 · HYP 4 vs GT 5</span>
+  </div>
+  <div class="grid grid-cols-2 gap-6 mt-4">
+    <div>
+      <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mono text-[12px] leading-5">
+        <div class="text-emerald-800">FTS top15 did include row:</div>
+        <div>session-1#10 `like Zumba, Hip Hop Abs, yoga, BodyPump`</div>
+        <div>session-1#4 `Zumba Tue/Thu 7pm`</div>
+        <div class="mt-2">cherry row 140 in top15? <span class="bg-emerald-100 px-1">True</span> with 6 toks, <span class="bg-amber-100 px-1">rank 9</span> with 12 toks → still Hit 1</div>
+        <div class="text-[11px] text-zinc-500 mt-2">475 rows, 13 hits for BodyPump</div>
+      </div>
+    </div>
+    <div>
+      <div class="bg-sky-50 border border-sky-200 rounded-lg p-3 mono text-[12px] leading-5">
+        <div class="text-sky-800">Inserted top10 had it:</div>
+        <div>report.json: searchResults contains session-1#10 + session-43 Hip Hop Sat</div>
+        <div class="mt-2">Context fed to nvidia/lightning: 3452 tok</div>
+        <div class="mt-2">HYP `4` vs GT `5` → `Zumba Tue+Thu =2` not counted</div>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2 text-[12px]"><span class="font-bold text-amber-700">Hit 1 but wrong</span> → need COUNT synth `4→5` `index.ts:319` baseMap</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Example C: not answerable by design -->
+<div class="card bg-white rounded-xl p-6 mb-6">
+  <div class="flex items-center gap-3">
+    <span class="badge">Example C — Not answerable by design (test abstain)</span>
+    <span class="mono text-xs">eeda8a6d_abs · 30-gallon tank · 0 hits · Hit 0</span>
+  </div>
+  <div class="grid grid-cols-3 gap-4 mt-4">
+    <div class="bg-zinc-50 border rounded-lg p-3 mono text-[12px] leading-5">
+      <div class="font-bold">Haystack</div>
+      <div>grep `30-gallon` → <span class="bg-zinc-200 px-1">0 hits</span> in 47 sessions</div>
+      <div class="text-[11px] text-zinc-500 mt-1">You never mentioned a tank.</div>
+    </div>
+    <div class="bg-sky-50 border border-sky-200 rounded-lg p-3 mono text-[12px] leading-5">
+      <div class="font-bold text-sky-800">DB</div>
+      <div>SELECT ... LIKE '%30-gallon%' → 0 rows</div>
+      <div class="text-[11px] text-zinc-500 mt-1">Not available, so cannot be inserted.</div>
+    </div>
+    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mono text-[12px] leading-5">
+      <div class="font-bold text-emerald-700">Correct behavior</div>
+      <div>GT: `The information provided is not enough. You did not mention...`</div>
+      <div>HYP: `I don't know` → now `correct` after `defaults.ts:29` intention fix</div>
+      <div class="text-[11px] text-emerald-700 mt-1">Judge on intention, not phrasing</div>
+    </div>
+  </div>
+</div>
+
+<!-- 11/14 vs 14/14 -->
+<div class="card bg-white rounded-xl p-6">
+  <h3 class="text-[14px] font-bold">Why 11/14 failing are Hit 0</h3>
+  <p class="text-[13px] text-zinc-600 mt-2">In `adv30-hcil6` `4/20`, 14 failing = 11 `Hit 0` (available but not inserted) + 2 `Hit 1` but `I don't know` (retrieved but abstained, e3038f8c `MRR 0.11` rank ~9 buried) + 1 `Hit 1` but `4 vs 5` (reasoning). The 11 `Hit 0` are all `available` in `475` but `FTS porter` 12-tok `OR` ranked them `>15` due to `dinner/homegrown` vs `cherry` lexical gap — not `not answerable`.</p>
+  <div class="flex gap-2 mt-3 mono text-[11px]">
+    <span class="bg-emerald-50 border border-emerald-200 px-2 py-1 rounded">Fix Hit 0: session_summaries_fts + atomic_claims_fts + intents_fts re-rank BM25-3</span>
+    <span class="bg-amber-50 border border-amber-200 px-2 py-1 rounded">Fix Hit 1 but wrong: COUNT synth + ledger</span>
+    <span class="bg-zinc-900 text-white px-2 py-1 rounded">Next: take one case at a time</span>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

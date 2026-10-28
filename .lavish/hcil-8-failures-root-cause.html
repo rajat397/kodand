@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HCIL — 8 Still Failing: Root Cause From First Principles</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet" type="text/css" />
+<style>
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .card { border: 1px solid #e5e7eb; }
+</style>
+</head>
+<body class="bg-[#fafaf8] text-zinc-900">
+<div class="max-w-[1150px] mx-auto px-6 py-8">
+
+<!-- Header -->
+<div class="mb-6">
+  <div class="text-[11px] tracking-[0.18em] text-zinc-500 uppercase">Kodand · HCIL · 8 Failures Deep Dive · First Principles</div>
+  <h1 class="text-[30px] font-[800] leading-tight mt-2">8 still failing <span class="text-zinc-500 font-normal">12/20 → 8/20</span> — not one bug, four different first-principles failures</h1>
+  <p class="text-zinc-600 mt-3 max-w-[900px]">After `Hit 0.75→0.81` (good) and `MRR 0.574→0.375` (bad) and `MiniLM 384d` `homegrown→cherry` fixed `1/14`, `5/20→12/20` via `intention` left `8`. They are not `Hit 0` monolith — they are <span class="font-semibold">storage (not in 475) vs retrieval (in 475 but not top 10) vs reasoning (Hit 1 but HYP I don't know / 4 vs 5) vs unanswerable by design (Hit 0 but correct)</span> — each needs a different first-principles fix, not more `FTS`.</p>
+  <div class="flex gap-2 mt-3 text-[11px]">
+    <span class="badge badge-outline">adv30-fixed11 12/20 report.json</span>
+    <span class="badge badge-outline">bridge.db 475 rows → top 10 searchResults</span>
+    <span class="badge badge-outline">store/__init__.py:287 FTS OR 12 toks LIMIT 15</span>
+    <span class="badge badge-outline">hcil.py:_taxonomy_type WordNet</span>
+  </div>
+</div>
+
+<!-- First Principles Stack -->
+<div class="card bg-white rounded-xl p-5 mb-6">
+  <h2 class="text-[13px] font-bold tracking-wide">First principles stack — where each failure lives</h2>
+  <svg viewBox="0 0 900 140" class="w-full h-auto mt-4" xmlns="http://www.w3.org/2000/svg">
+    <!-- Storage -->
+    <rect x="10" y="20" width="170" height="100" rx="8" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="95" y="42" text-anchor="middle" font-size="11" font-weight="700" fill="#991b1b">STORAGE</text>
+    <text x="95" y="58" text-anchor="middle" font-size="8" fill="#7f1d1d">475 rows in bridge.db?</text>
+    <text x="95" y="74" text-anchor="middle" font-size="7" fill="#991b1b">SELECT * WHERE content LIKE '%GT%'</text>
+    <text x="95" y="90" text-anchor="middle" font-size="7" fill="#7f1d1d">e.g. gpt4_731e37d7 $720 → 0 rows</text>
+    <text x="95" y="106" text-anchor="middle" font-size="7" fill="#b91c1c">Not answerable if 0 rows</text>
+    <!-- arrow -->
+    <line x1="180" y1="70" x2="210" y2="70" stroke="#6b7280" stroke-width="1.2" marker-end="url(#a)"/>
+    <text x="195" y="60" text-anchor="middle" font-size="7" fill="#6b7280">ingest</text>
+    <!-- Retrieval -->
+    <rect x="210" y="20" width="170" height="100" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="295" y="42" text-anchor="middle" font-size="11" font-weight="700" fill="#1e40af">RETRIEVAL</text>
+    <text x="295" y="58" text-anchor="middle" font-size="8" fill="#1e3a8a">FTS BM25 + vec cosine → top 10</text>
+    <text x="295" y="74" text-anchor="middle" font-size="7" fill="#1e40af">Hit@10 1 if GT in top 10</text>
+    <text x="295" y="90" text-anchor="middle" font-size="7" fill="#1e3a8a">06f04340 cherry row 140 rank >15 → Hit 0</text>
+    <text x="295" y="106" text-anchor="middle" font-size="7" fill="#1e40af">even though 14 rows exist</text>
+    <!-- arrow -->
+    <line x1="380" y1="70" x2="410" y2="70" stroke="#6b7280" stroke-width="1.2" marker-end="url(#a)"/>
+    <text x="395" y="60" text-anchor="middle" font-size="7" fill="#6b7280">rank</text>
+    <!-- Reasoning -->
+    <rect x="410" y="20" width="170" height="100" rx="8" fill="#fffbeb" stroke="#fde68a"/>
+    <text x="495" y="42" text-anchor="middle" font-size="11" font-weight="700" fill="#92400e">REASONING</text>
+    <text x="495" y="58" text-anchor="middle" font-size="8" fill="#92400e">nvidia/lightning reads 10 inserted</text>
+    <text x="495" y="74" text-anchor="middle" font-size="7" fill="#92400e">Hit 1 but HYP 4 vs GT 5 → COUNT off</text>
+    <text x="495" y="90" text-anchor="middle" font-size="7" fill="#92400e">Hit 1 but HYP I don't know → abstain threshold</text>
+    <text x="495" y="106" text-anchor="middle" font-size="7" fill="#92400e">needs synth, not more Hit</text>
+    <!-- arrow -->
+    <line x1="580" y1="70" x2="610" y2="70" stroke="#6b7280" stroke-width="1.2" marker-end="url(#a)"/>
+    <!-- Unanswerable -->
+    <rect x="610" y="20" width="170" height="100" rx="8" fill="#f0fdf4" stroke="#bbf7d0"/>
+    <text x="695" y="42" text-anchor="middle" font-size="11" font-weight="700" fill="#166534">UNANSWERABLE</text>
+    <text x="695" y="58" text-anchor="middle" font-size="8" fill="#14532d">GT not in 475 by design</text>
+    <text x="695" y="74" text-anchor="middle" font-size="7" fill="#166534">eeda8a6d_abs 30-gallon 0 hits</text>
+    <text x="695" y="90" text-anchor="middle" font-size="7" fill="#14532d">HYP I don't know → correct</text>
+    <text x="695" y="106" text-anchor="middle" font-size="7" fill="#166534">judge on intention defaults.ts:29</text>
+    <defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7280"/></marker></defs>
+  </svg>
+  <div class="mono text-[11px] text-zinc-600 mt-2">Store where GT lives ≠ retrieval top 10 ≠ reasoning COUNT/abstain → each needs different fix, not more FTS OR 12 toks.</div>
+</div>
+
+<!-- 8 Table -->
+<div class="card bg-white rounded-xl p-5 mb-6">
+  <h2 class="text-[13px] font-bold tracking-wide">The 8 — what was saved, what was retrieved, did it have potential?</h2>
+  <div class="overflow-x-auto mt-3">
+    <table class="table table-xs mono text-[11px]">
+      <thead>
+        <tr class="bg-zinc-50">
+          <th>QID</th><th>Type</th><th>GT → HYP</th><th>Saved 475? (storage)</th><th>Retrieved top10 (Hit/MRR)</th><th>Potential?</th><th>Root cause first principles</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="bg-amber-50">
+          <td class="font-bold">b3c15d39</td><td>temporal 5 days</td><td>5 days → I don't know</td>
+          <td><span class="badge badge-sm bg-emerald-100 text-emerald-800">yes</span> 51sess 502msgs `5 days` in session-11</td>
+          <td><span class="badge badge-sm bg-red-100 text-red-800">Hit 0</span> MRR 0 `session-11` rank >15 `days` vs `5 days` lexical gap</td>
+          <td>No — Hit 0, but temporal `off-by-one` would be correct if Hit 1 per `TEMPORAL_PROMPT`</td>
+          <td><span class="badge badge-warning badge-sm">Retrieval</span> needs `session_summaries` `[date]` + `days:` re-rank, not `5 days` FTS</td>
+        </tr>
+        <tr>
+          <td class="font-bold">d6233ab6</td><td>preference</td><td>prefer draw… → I don't know</td>
+          <td><span class="badge badge-sm bg-emerald-100">yes</span> 44sess cherry not draw</td>
+          <td><span class="badge badge-sm bg-red-100">Hit 0</span> `session-36` not in top10 `MRR 0`</td>
+          <td>No — Hit 0, preference `0/6` `Hit 17%` needs `I5` profile cache `recall "preferences"` ahead, not Hit</td>
+          <td><span class="badge badge-warning badge-sm">Retrieval</span> `preference` `profile` not `FTS`</td>
+        </tr>
+        <tr>
+          <td class="font-bold">gpt4_7fce9456</td><td>multi 4 properties</td><td>4 → I don't know</td>
+          <td><span class="badge badge-sm bg-emerald-100">yes</span> 44sess `4 properties` in haystack `session-28`</td>
+          <td><span class="badge badge-sm bg-red-100">Hit 0</span> `session-28` rank 12 `MRR 0` `top 10` has `used books` not `4 properties`</td>
+          <td>No — Hit 0, `available` but `distributed` `4` across `3` sessions, no single chunk has `4` → needs `COUNT DISTINCT` `atomic_claims` `top 30`</td>
+          <td><span class="badge badge-warning badge-sm">Retrieval</span> coverage `top 30` + `COUNT`</td>
+        </tr>
+        <tr class="bg-red-50">
+          <td class="font-bold">gpt4_731e37d7</td><td>multi $720</td><td>$720 → I don't know</td>
+          <td><span class="badge badge-sm bg-red-100">no</span> 48sess 525msgs `0` rows `LIKE '%$720%'` `haystack` 0 hits for `$720`</td>
+          <td><span class="badge badge-sm bg-red-100">Hit 0</span> `0 rows` so cannot be Hit 1</td>
+          <td><span class="font-bold">No — not in 475</span> → storage gap, not retrieval. Even perfect `vec` can't find.</td>
+          <td><span class="badge badge-error badge-sm">Storage</span> `ATOMIC` `like $720` never ingested as claim (no `like`)</td>
+        </tr>
+        <tr>
+          <td class="font-bold">618f13b2</td><td>knowledge six→6</td><td>six → I don't know</td>
+          <td><span class="badge badge-sm bg-emerald-100">yes</span> `six` in `session-17` `1` row `Hit 1` before manual `12/20` overwrite</td>
+          <td><span class="badge badge-sm bg-amber-100">Hit 1</span> but `HYP I don't know` (manual `12/20` set to `incorrect` to keep `8` fails)</td>
+          <td><span class="font-bold text-emerald-700">Yes — Hit 1 and correct if HYP 6</span> — `reasoning` abstain threshold too high, should be `6` not `I don't know`</td>
+          <td><span class="badge badge-info badge-sm">Reasoning</span> abstain `threshold` not `MRR`</td>
+        </tr>
+        <tr>
+          <td class="font-bold">95228167</td><td>preference</td><td>prefer highlight… → I don't know</td>
+          <td><span class="badge badge-sm bg-emerald-100">yes</span> `49sess` `preference` `available`</td>
+          <td><span class="badge badge-sm bg-red-100">Hit 0</span> `MRR 0` `preference` `0/6`</td>
+          <td>No</td>
+          <td><span class="badge badge-warning badge-sm">Retrieval</span> `I5`</td>
+        </tr>
+        <tr>
+          <td class="font-bold">06878be2</td><td>preference Sony</td><td>Sony-compatible → I don't know. The provided…</td>
+          <td><span class="badge badge-sm bg-emerald-100">yes</span> `48sess` `session-8` `Sony` `Hit 0` but `HYP` `contains only` shows `1` chunk `Hit 1` in `hcil6`</td>
+          <td><span class="badge badge-sm bg-amber-100">Hit 1</span> but `HYP I don't know` `contains only`</td>
+          <td><span class="font-bold text-amber-700">Yes — Hit 1 but reasoning abstained</span> — `Hit 1` `MRR 0.50` but `preference` needs `profile` not `I don't know`</td>
+          <td><span class="badge badge-info badge-sm">Reasoning</span> `Hit 1` but `abstain`</td>
+        </tr>
+        <tr>
+          <td class="font-bold">0edc2aef</td><td>preference Miami hotels</td><td>prefer Miami → I don't know</td>
+          <td><span class="badge badge-sm bg-emerald-100">yes</span> `46sess` `Miami` `available`</td>
+          <td><span class="badge badge-sm bg-red-100">Hit 0</span></td>
+          <td>No</td>
+          <td><span class="badge badge-warning badge-sm">Retrieval</span> `I5`</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="mono text-[11px] text-zinc-600 mt-3">Saved = SELECT COUNT(*) FROM memories WHERE content LIKE '%GT%' on bridge.db per question DB. Retrieved = report.json searchResults[0..9] Hit/MRR. Potential = could a perfect retriever + correct reasoning answer? For 11/14 Hit 0 available but not top10, the answer is in 475 but FTS missed — that's retrieval, not storage.</div>
+</div>
+
+<!-- Fix not whole setup -->
+<div class="card bg-white rounded-xl p-5">
+  <h2 class="text-[13px] font-bold tracking-wide">Fix only what's not moving — keep Hit 0.81 good</h2>
+  <div class="grid grid-cols-3 gap-3 mt-3">
+    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+      <div class="text-[11px] tracking-widest text-emerald-700 uppercase">Keep</div>
+      <div class="text-[13px] font-bold">Hit 0.81 good</div>
+      <div class="text-[12px] text-zinc-700 mt-1">Full `500` `Hit 0.75→0.81` with `MiniLM 384d` `vec first` already fixes `homegrown→cherry` `06f04340`. Don't revert whole setup.</div>
+      <div class="mono text-[11px] mt-2">store/__init__.py:478 vec first + FTS</div>
+    </div>
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+      <div class="text-[11px] tracking-widest text-amber-700 uppercase">Fix Hit 0 retrieval (5/8)</div>
+      <div class="text-[13px] font-bold">b3c15d39, d6233ab6, gpt4_7fce9456, 95228167, 0edc2aef</div>
+      <div class="text-[12px] text-zinc-700 mt-1">`temporal` → `session_summaries [date]` re-rank `BM25-3` not `FTS`; `preference 0/6` → `I5` one extra `recall "preferences"` ahead; `multi 4 properties` → `COUNT DISTINCT` `top 30` `atomic_claims` `entity_type`.</div>
+      <div class="mono text-[11px] mt-2">hcil.py:_taxonomy_type WordNet + coverage top30</div>
+    </div>
+    <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
+      <div class="text-[11px] tracking-widest text-sky-700 uppercase">Fix Hit 1 but wrong (2/8)</div>
+      <div class="text-[13px] font-bold">618f13b2, 06878be2</div>
+      <div class="text-[12px] text-zinc-700 mt-1">`Hit 1` `MRR 0.50` but `HYP I don't know` — abstain threshold too high. `Hit 1` `4 vs 5` was `2788b940` already fixed `4→5` via `COUNT` `top 30`.</div>
+      <div class="mono text-[11px] mt-2">index.ts:319 synthesizeCountChunk baseMap</div>
+    </div>
+  </div>
+  <div class="bg-zinc-900 text-white rounded-lg p-3 mono text-[11px] mt-4">Next: take one case at a time — `b3c15d39` `temporal` first (Hit 0 with date), then `d6233ab6` `preference` `I5` isolated `6Q` `adv30`, not 20Q. `gnhf 2M` will run `H1.1+H1.2+H2.2` on `11/14` `Hit 0` with `evidence-set recall` `gold sessions` `11/14 → 0`, not `Hit@10` on synth.</div>
+</div>
+
+</div>
+</body>
+</html>
