@@ -1,0 +1,9 @@
+[Unit]
+Description=kodand laya rerank TCP server
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/rajat/.local/bin/kodand rerank-serve --model /mnt/data/models/laya-multilingual
+Restart=always
+RestartSec=3
+[Install]
+WantedBy=default.target

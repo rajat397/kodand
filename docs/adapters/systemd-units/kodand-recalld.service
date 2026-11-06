@@ -1,0 +1,9 @@
+[Unit]
+Description=kodand persistent recall server
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/rajat/.local/bin/kodand recalld
+Restart=always
+RestartSec=3
+[Install]
+WantedBy=default.target
