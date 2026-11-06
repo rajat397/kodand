@@ -8,7 +8,6 @@ not bare words. "password retry policy" and prose emails are allowed.
 """
 import math
 import re
-from kodand.store import get_store
 
 # Provider-prefixed key shapes (high precision, no context needed).
 KEY_PATTERNS = [
@@ -16,8 +15,13 @@ KEY_PATTERNS = [
     (r"gh[pousr]_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,}", "github-token"),
     (r"xox[bap]-[A-Za-z0-9\-]{8,}", "slack-token"),
     (r"sk-(live|test)-[A-Za-z0-9]{8,}|sk-[A-Za-z0-9]{20,}", "api-key-sk"),
+    # Anthropic keys embed dashes (sk-ant-api03-...): the generic sk- pattern
+    # misses them. Match the provider prefix explicitly with a length floor.
+    (r"sk-ant-[A-Za-z0-9\-]{20,}", "anthropic-api-key"),
+    (r"sk-proj-[A-Za-z0-9\-]{20,}", "openai-project-key"),
     (r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----", "pem-private-key"),
     (r"(?i)bearer\s+[A-Za-z0-9_\-\.~]{20,}", "bearer-token"),
+    (r"(?i)api[_-]?key[\"'\s:=]+[A-Za-z0-9_\-\.]{20,}", "generic-api-key"),
 ]
 KEY_RES = [(re.compile(p), name) for p, name in KEY_PATTERNS]
 
@@ -61,7 +65,7 @@ def _is_secret(content: str):
             val = ""
             try:
                 val = (m.group(1) or "").strip("'\"").lower()
-            except Exception:
+            except (AttributeError, TypeError, ValueError):
                 val = ""
             if val and val not in PLACEHOLDER_WORDS and not set(val) <= set("*x"):
                 return True, name
