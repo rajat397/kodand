@@ -279,7 +279,9 @@ def hybrid_rank(
     sessions. Output is capped at `keep_chunks` chunks overall. Sessions keep
     ALL their chunks when the budget allows, preserving multi-chunk evidence.
     """
-    judged = score_sessions(query, chunks, agent=agent, recency=recency_band > 0, **kw)
+    judged = score_sessions(
+        query, chunks, agent=agent, recency=recency_band > 0, model_path=kw.get("model_path")
+    )
     if not judged:
         return []
     by_first = OrderedDict()
