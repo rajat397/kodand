@@ -393,6 +393,8 @@ def build_tcp_server(
                             req["query"],
                             req.get("chunks") or [],
                             keep_chunks=int(req.get("keep_chunks", 10)),
+                            seed_slots=int(req.get("seed_slots", 6)),
+                            fill_slots=int(req.get("fill_slots", 4)),
                             recency=bool(os.environ.get("KODAND_LAYA_RECENCY")),
                             agent=agent,
                         )
