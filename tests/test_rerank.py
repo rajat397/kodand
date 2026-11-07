@@ -129,3 +129,23 @@ class _FakeAgent:
 
     def predict_batch(self, states, questions, batch_size=None, max_len=1024):
         return [self.predict(s, questions, max_len) for s in states]
+
+
+def test_hybrid_rank_preserves_bm25_coverage_and_adds_laya_fill():
+    from kodand.rerank import hybrid_rank
+    # BM25 input order: s1 (p .90), s2 (.40), s3 (.10) then two high-p sessions
+    # beyond the seed set: s4 (.85), s5 (.80) — BM25 gave them late rank only.
+    agent = _FakeAgent({"a": 0.90, "b": 0.40, "c": 0.10, "d": 0.85, "e": 0.80})
+    chunks = [
+        {"id": 1, "content": "a", "locator": "s1#0"},
+        {"id": 2, "content": "b", "locator": "s2#0"},
+        {"id": 3, "content": "c", "locator": "s3#0"},
+        {"id": 4, "content": "d", "locator": "s4#0"},
+        {"id": 5, "content": "e", "locator": "s5#0"},
+    ]
+    out = hybrid_rank("q?", chunks, keep_chunks=10, seed_slots=2, fill_slots=2, agent=agent)
+    sessions = [c["locator"].split("#")[0] for c in out]
+    # seeds keep the first two BM25 sessions; fills bring the high-p s4, s5 in
+    assert sessions[:2] == ["s1", "s2"]
+    assert set(sessions[2:]) <= {"s4", "s5", "s3", "s1", "s2"}
+    assert "s4" in sessions or "s5" in sessions

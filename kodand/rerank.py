@@ -260,6 +260,73 @@ def rank_sessions(
     return out
 
 
+def hybrid_rank(
+    query: str,
+    chunks: Iterable[dict[str, Any]],
+    *,
+    keep_chunks: int = 10,
+    seed_slots: int = 6,
+    fill_slots: int = 4,
+    recency_band: float = 0.0,
+    agent=None,
+    **kw,
+) -> list[dict[str, Any]]:
+    """Option-C hybrid rank: BM25 seeds + laya fills, chunk budget unchanged.
+
+    Seed slots take the session-best chunk of the first `seed_slots` DISTINCT
+    sessions in BM25 (input) order. Fill slots add the next-best session (by
+    laya P, recency-band aware) whose best chunk sits outside the seeded
+    sessions. Output is capped at `keep_chunks` chunks overall. Sessions keep
+    ALL their chunks when the budget allows, preserving multi-chunk evidence.
+    """
+    judged = score_sessions(query, chunks, agent=agent, recency=recency_band > 0, **kw)
+    if not judged:
+        return []
+    by_first = OrderedDict()
+    for row in judged:
+        ses = row["locator"].split("#")[0]
+        if ses not in by_first:
+            by_first[ses] = row
+    seeds = list(by_first)[: max(1, seed_slots)]
+    seed_set = set(seeds)
+    rest = [r for r in judged if r["locator"].split("#")[0] not in seed_set]
+    if recency_band > 0:
+        for r in rest:
+            r.setdefault("session_ts", 0.0)
+        # newest-first inside laya-tie bands among the fillers
+        rest.sort(key=lambda r: r.get("session_ts", 0), reverse=True)
+        banded = []
+        for r in rest:
+            placed = False
+            for g in banded:
+                if abs(g[0]["laya_p"] - r["laya_p"]) <= recency_band:
+                    g.append(r)
+                    g.sort(key=lambda x: -x["laya_p"])
+                    placed = True
+                    break
+            if not placed:
+                banded.append([r])
+        rest = [r for g in sorted(banded, key=lambda g: -g[0]["laya_p"]) for r in g]
+    else:
+        rest.sort(key=lambda r: -r["laya_p"])
+    fill = rest[: max(1, fill_slots)]
+    out = []
+    seen_budget = 0
+    for order in [by_first[s] for s in seeds] + fill:
+        if len(out) >= keep_chunks:
+            break
+        for chunk in order["session_chunks"]:
+            if len(out) >= keep_chunks:
+                break
+            item = dict(chunk)
+            item["session_p"] = order["laya_p"]
+            if order.get("session_ts"):
+                item["session_ts"] = order["session_ts"]
+            out.append(item)
+            seen_budget += 1
+    return out
+
+
 def serve(model_path: str | None = None, out=None) -> None:
     """JSONL request/response loop: one model load, many queries.
 
@@ -319,7 +386,15 @@ def build_tcp_server(
                     continue
                 try:
                     req = json.loads(line)
-                    if req.get("mode", "sessions") == "sessions":
+                    if req.get("mode", "sessions") == "hybrid":
+                        kept = hybrid_rank(
+                            req["query"],
+                            req.get("chunks") or [],
+                            keep_chunks=int(req.get("keep_chunks", 10)),
+                            recency=bool(os.environ.get("KODAND_LAYA_RECENCY")),
+                            agent=agent,
+                        )
+                    elif req.get("mode", "sessions") == "sessions":
                         recency_band = float(req.get("recency_band", 0.0))
                         if os.environ.get("KODAND_LAYA_RECENCY"):
                             recency_band = recency_band or 0.10
