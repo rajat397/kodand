@@ -132,7 +132,7 @@ kodand memory-surface --repo ~/work/.kodand/repo-main --port 8881
 ## Safety in the box
 
 - write-time secret scrub (detectors: AWS, github, slack, openai, anthropic,
-  PEM, bearer, generic assignment) — blocked before rows appear ([scope]))
+  PEM, bearer, generic assignment) — blocked before rows appear (`kodand/scope.py`)
 
 - 32-prompt x 4-category forked injection corpus with a zero-hit scanner
   (`bench/safety/scan_artifacts.py`)
