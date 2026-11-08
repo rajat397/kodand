@@ -96,6 +96,10 @@ def main():
     asm_p.add_argument("--prefix-file", required=True, help="Path to the STABLE prefix text (must not change mid-session)")
     asm_p.add_argument("--state-file", required=True, help="Slot table state (freeze block order across turns)")
     asm_p.add_argument("--limit", type=int, default=10, help="Max memory blocks")
+    surf_p = subparsers.add_parser("memory-surface", help="K5 visual interactive memory surface (http://127.0.0.1:port)")
+    surf_p.add_argument("--repo", required=True, help="Repository path")
+    surf_p.add_argument("--port", type=int, default=8881)
+    surf_p.add_argument("--host", default="127.0.0.1")
     recalld_p = subparsers.add_parser("recalld", help="TCP recall server (per-repo cache, no spawn per query)")
     recalld_p.add_argument("--host", default="127.0.0.1", help="Bind host (default 127.0.0.1)")
     recalld_p.add_argument("--port", type=int, default=8766, help="Bind port (default 8766)")
@@ -577,6 +581,16 @@ def main():
             print(f"❌ assemble: {e}", file=sys.stderr)
             sys.exit(3)
         print(json.dumps(out))
+
+    elif args.command == "memory-surface":
+        from kodand.surface import serve
+
+        server, _svc, url = serve(args.repo, port=args.port, host=args.host)
+        print(f"memory surface: {url}")
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
 
     elif args.command == "rerank-serve":
         from kodand.rerank import serve_tcp

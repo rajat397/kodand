@@ -110,3 +110,22 @@ are kept deliberately so the reasoning survives the authors.
 - **D26 — the growth work folder is single-source for goal truth**, doctrine updates
   and evidence; updates in code accompany an entry there. `git log` in the growth
   folder shows the register for every decision taken above.
+
+## K5 memory surface
+
+- **D27 — the surface is only allowed to render store truth**: the approved design's
+  static sample rows would have made G1 pass with stale data (the browser test caught
+  this), so every row is rendered FROM `/api/*` (nothing hardcoded; a databreak
+  makes rows disappear, never fake a pass).
+- **D28 — UI corrections map 1:1 to the store contract**: the correction modal posts
+  {content, replaces_id} and hits Store.correct(origin='user') with event logging on
+  disk; a supersede action routes to Store.supersede. There is no client-side state
+  machine pretending — sqlite rows ARE the states.
+- **D29 — verification style: a headless browser user session is the gate**
+  (tests/verify_k5.py via Playwright): search, typed correction, save/dismiss with
+  keyboard Escape (G5 escape-routes per design system), supersede through the live row
+  action, screenshots per stage. Mock-based checks are forbidden as adequate proof
+  after the G1 incident.
+- **D30 — assembly openness is a product-surface property (G3)**: the surface explains
+  "what the agent will read next" with K4 block ids/slots from the same assembly
+  engine, not a parallel preview.
