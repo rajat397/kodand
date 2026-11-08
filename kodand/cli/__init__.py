@@ -6,8 +6,9 @@ import sys
 import argparse
 import json
 import os
+from pathlib import Path
 from kodand.store import get_store
-from kodand.capture import run_capture_tick, CaptureLoop
+from kodand.capture import run_capture_tick, run_capture_loop, CaptureLoop
 from kodand.recall import create_recall_engine, recall
 from kodand.trust import TrustSurface
 from kodand.hooks import before_tool
@@ -56,6 +57,37 @@ def main():
     recall_p.add_argument("--query", help="Search query")
     recall_p.add_argument("--limit", type=int, default=10, help="Maximum results")
     recall_p.add_argument("--json", action="store_true", help="Machine-readable JSON output")
+    recall_p.add_argument("--laya-filter", action="store_true",
+                          help="Keep only the best chunk of the top-k sessions judged relevant by the Laya model "
+                               "(requires a running `kodand rerank-serve`; override target with KODAND_LAYA_URL)")
+    recall_p.add_argument("--keep", type=int, default=8, help="Sessions kept when --laya-filter is on")
+
+    # laya rerank
+    rerank_p = subparsers.add_parser("rerank", help="Filter recall results with the Laya decision model")
+    rerank_p.add_argument("--repo", help="Repository path (omit to read chunks as JSON on stdin)")
+    rerank_p.add_argument("--query", required=True, help="Question used to judge each chunk")
+    rerank_p.add_argument("--limit", type=int, default=30, help="Candidates to fetch when --repo is set")
+    rerank_p.add_argument("--keep", type=int, default=8, help="Sessions to keep")
+    rerank_p.add_argument("--model", help="Laya checkpoint directory")
+
+    # laya rerank server
+    rerank_server_p = subparsers.add_parser(
+        "rerank-server", help="Long-lived JSONL rerank server (one model load)"
+    )
+    rerank_server_p.add_argument("--model", help="Laya checkpoint directory")
+    rerank_serve_p = subparsers.add_parser(
+        "rerank-serve", help="TCP rerank server for `kodand recall --laya-filter`"
+    )
+    rerank_serve_p.add_argument("--host", default="127.0.0.1", help="Bind host (default 127.0.0.1)")
+    rerank_serve_p.add_argument("--port", type=int, default=8765, help="Bind port (default 8765)")
+    rerank_serve_p.add_argument("--model", help="Laya checkpoint directory")
+    fetch_model_p = subparsers.add_parser(
+        "fetch-model", help="Download the laya decision-model checkpoint (verified sha256)"
+    )
+    fetch_model_p.add_argument("--dest", help="Install dir (default ~/.kodand/models/laya-multilingual)")
+    recalld_p = subparsers.add_parser("recalld", help="TCP recall server (per-repo cache, no spawn per query)")
+    recalld_p.add_argument("--host", default="127.0.0.1", help="Bind host (default 127.0.0.1)")
+    recalld_p.add_argument("--port", type=int, default=8766, help="Bind port (default 8766)")
 
     # prospective recall
     prospective_p = subparsers.add_parser("prospective", help="Prospective recall based on context")
@@ -214,6 +246,23 @@ def main():
     elif args.command == "recall":
         engine = create_recall_engine(args.repo)
         results = engine.recall(query=args.query or "", k=args.limit)
+        if getattr(args, "laya_filter", False):
+            from kodand.rerank import filter_via_socket
+
+            if not args.query:
+                print("❌ --laya-filter requires --query", file=sys.stderr)
+                sys.exit(2)
+            rows = [
+                {"id": e.get("id"), "content": e.get("content", ""),
+                 "locator": e.get("locator", ""), "scope": e.get("scope", "repo")}
+                for e in results
+            ]
+            try:
+                kept = filter_via_socket(args.query or "", rows, keep_sessions=args.keep)
+            except RuntimeError as e:
+                print(f"❌ {e}", file=sys.stderr)
+                sys.exit(2)
+            results = kept
         if getattr(args, "json", False):
             print(json.dumps([
                 {"id": e.get("id"), "content": e.get("content", ""),
@@ -447,6 +496,53 @@ def main():
         else:
             for e in results:
                 print(f"  #{e['id']} utility={e.get('utility', 0):.2f} | {e.get('content', '')[:60]}")
+
+    elif args.command == "rerank":
+        from kodand.rerank import filter_sessions
+
+        if args.repo:
+            engine = create_recall_engine(args.repo)
+            results = engine.recall(query=args.query, k=args.limit)
+            chunks = [
+                {"id": e.get("id"), "content": e.get("content", ""),
+                 "locator": e.get("locator", ""), "scope": e.get("scope", "repo")}
+                for e in results
+            ]
+        else:
+            chunks = json.load(sys.stdin)
+        try:
+            kept = filter_sessions(
+                args.query, chunks, keep_sessions=args.keep, model_path=args.model
+            )
+        except RuntimeError as e:
+            print(f"❌ {e}", file=sys.stderr)
+            sys.exit(2)
+        print(json.dumps(kept))
+
+    elif args.command == "rerank-server":
+        from kodand.rerank import serve
+
+        serve(model_path=args.model)
+
+    elif args.command == "fetch-model":
+        from kodand.fetch_model import fetch, default_dest
+
+        try:
+            status = fetch(Path(args.dest) if args.dest else default_dest())
+        except RuntimeError as e:
+            print(f"❌ fetch-model: {e}", file=sys.stderr)
+            sys.exit(2)
+        print(json.dumps(status))
+
+    elif args.command == "rerank-serve":
+        from kodand.rerank import serve_tcp
+
+        serve_tcp(args.host, args.port, model_path=args.model)
+
+    elif args.command == "recalld":
+        from kodand.recalld import serve_tcp
+
+        serve_tcp(args.host, args.port)
 
 
 if __name__ == "__main__":

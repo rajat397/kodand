@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="kodand",
-    version="0.1.0",
+    version="0.2.0",
     description="Intent-driven memory plane for coding agents - persistent context across sessions, any language, any harness",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -21,7 +21,8 @@ setup(
     python_requires=">=3.8",
     install_requires=[],
     extras_require={
-        "dev": ["pytest", "black", "flake8", "mypy"],
+        "laya": ["torch>=2.0", "transformers>=4.44", "safetensors>=0.4", "huggingface_hub"],
+        "dev": ["pytest", "ruff"],
     },
     entry_points={
         "console_scripts": [
@@ -39,6 +40,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Topic :: Software Development",
-        "Topic :: Utilities",
+        "Topic :: Software Development :: Libraries",
+        "Topic :: Database",
     ],
 )

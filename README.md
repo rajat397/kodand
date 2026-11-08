@@ -1,6 +1,20 @@
 # kodand
 
-Memory plane beneath coding-agent context windows.
+kodand = persistent, explainable memory plane for coding agents — SQLite-local storage, session-aware CPU decision-model rerank, safety gates in the box, an adapter for any harness that can shell out.
+
+## Quickstart (pip, 60 seconds)
+
+```sh
+pip install kodand                    # zero-dep core: FTS recall
+pip install "kodand[laya]"            # CPU decision-model rerank tier
+kodand fetch-model                    # ~644 MB checkpoint, sha-verified -> ~/.kodand/
+kodand rerank-serve &                 # scoring daemon, ~830 MB, once per boot
+KODAND_LAYA_URL=127.0.0.1:8765 kodand recall --repo . --query "..." --laya-filter --json
+```
+
+Kill switch: `KODAND_BASELINE=1` reverts retrieval to plain FTS for every consumer in one env var.
+Adapter examples (opencode plugin ~60 lines, Claude Code hooks, raw pipe, systemd units) live in
+`docs/adapter.md` + `docs/adapters/`.
 
 ## Install
 
@@ -54,6 +68,29 @@ KODAND_LAYA_URL=127.0.0.1:8765 kodand recall --repo . --query "..." --laya-filte
 
 See [docs/adapter.md](docs/adapter.md) and [docs/adapters/](docs/adapters/) for the
 opencode plugin (~60 lines), Claude Code hook, raw-pipe and optional systemd units.
+
+## Layout metric honesty + measured results
+
+All claims cite committed run reports under `bench/reports/`.
+
+LongMemEval-500, identical judge/answering (nvidia/nemotron-3.5-lightning-30b-a3b):
+- plain FTS baseline: accuracy 270/500 (0.540), evidence recall@10 **0.862**
+- shipped hybrid (BM25 seeds + laya session fills, budget 10): accuracy **284/500 (0.568)**
+  (McNemar 43/57 discordant, p=0.19 — directional, not proven), evidence recall 0.825
+- honest tradeoff: the rerank wins hard on adversarial splits and gives up a recorded
+  ~3.7pp evidence coverage on standard text; not hidden anywhere.
+
+## Safety in the box
+
+- secrets blocked on every write path (detector list in `kodand/scope.py`)
+- 32-prompt x 4-category prompt-injection corpus + zero-hit scanner (`bench/safety/`)
+- per-chunk provenance: `session_p` (relevance) always inspectable in stdout JSON
+- kill switch honored by CLI and daemons (tested; p95=113ms fallback)
+
+## What kodand does NOT do
+
+- never sends data anywhere (stores and reads everything locally)
+- never executes recalled content as instructions; it returns text, nothing more
 
 ## License
 

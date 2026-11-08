@@ -3,12 +3,15 @@ setup.py
 kodand/__init__.py
 kodand/anchor.py
 kodand/enforcement.py
+kodand/fetch_model.py
 kodand/handoff.py
 kodand/harness_adapter.py
 kodand/hcil.py
 kodand/install.py
 kodand/manifest.py
 kodand/outcome.py
+kodand/recalld.py
+kodand/rerank.py
 kodand/scope.py
 kodand/swarm.py
 kodand/team.py
@@ -33,3 +36,10 @@ kodand/recall/__init__.py
 kodand/store/__init__.py
 kodand/store/store.py
 kodand/trust/__init__.py
+tests/test_force.py
+tests/test_gaps.py
+tests/test_hcil.py
+tests/test_launch.py
+tests/test_rerank.py
+tests/test_rerank_tcp_helpers.py
+tests/test_safety.py

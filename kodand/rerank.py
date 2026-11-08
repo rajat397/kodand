@@ -23,7 +23,26 @@ from collections import OrderedDict
 from collections.abc import Iterable
 from typing import Any
 
-DEFAULT_MODEL = os.environ.get("KODAND_LAYA_MODEL", "/mnt/data/models/laya-multilingual")
+
+def _default_model_dir() -> str:
+    """Portable checkpoint lookup (first match wins):
+    1. $KODAND_LAYA_MODEL
+    2. ~/.kodand/models/laya-multilingual (the `kodand fetch-model` target)
+    3. /mnt/data/models/laya-multilingual (this dev box's path)
+    """
+    env = os.environ.get("KODAND_LAYA_MODEL")
+    if env and os.path.isdir(env):
+        return env
+    home = os.path.join(os.path.expanduser("~"), ".kodand", "models", "laya-multilingual")
+    if os.path.isdir(home):
+        return home
+    mnt = "/mnt/data/models/laya-multilingual"
+    if os.path.isdir(mnt):
+        return mnt
+    return home  # keeps the friendly error path when nothing is fetched yet
+
+
+DEFAULT_MODEL = _default_model_dir()
 DEFAULT_URL = os.environ.get("KODAND_LAYA_URL", "")
 INSTRUCTION = "This passage would help answer the question: {q}"
 BATCH_SIZE = 8

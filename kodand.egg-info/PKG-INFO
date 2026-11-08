@@ -1,12 +1,11 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: kodand
-Version: 0.1.0
+Version: 0.2.0
 Summary: Intent-driven memory plane for coding agents - persistent context across sessions, any language, any harness
 Home-page: https://github.com/rajat397/kodand
 Author: Rajat Srivastava
 Author-email: rajat397@gmail.com
 License: Apache-2.0
-Platform: UNKNOWN
 Classifier: Development Status :: 3 - Alpha
 Classifier: Intended Audience :: Developers
 Classifier: License :: OSI Approved :: Apache Software License
@@ -17,10 +16,28 @@ Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Topic :: Software Development
-Classifier: Topic :: Utilities
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Database
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
+Provides-Extra: laya
+Requires-Dist: torch>=2.0; extra == "laya"
+Requires-Dist: transformers>=4.44; extra == "laya"
+Requires-Dist: safetensors>=0.4; extra == "laya"
+Requires-Dist: huggingface_hub; extra == "laya"
 Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: provides-extra
+Dynamic: requires-python
+Dynamic: summary
 
 # kodand
 
@@ -40,14 +57,45 @@ kodand install opencode   # or claude-code, cursor, windsurf, qoder, vscode, all
 - `kodand install <harness>` - Install for a harness
 - `kodand remember` - Store a memory entry
 - `kodand recall` - Search and recall memories
+- `kodand rerank` - One-shot filter of recall results with the Laya decision model
+- `kodand rerank-serve` - TCP rerank server for `recall --laya-filter`
 - `kodand trust-list` - List trust surface entries
 - `kodand capture-tick` - Run capture tick
 - `kodand mcp` - Start MCP server
 - `kodand dashboard` - Start local dashboard
 - `kodand doctor` - Check installation
 
+## Laya retrieval filter
+
+Score candidate chunks with a small decision model (Laya, CPU-only) and keep
+the best chunk of the top-k sessions by P(help answers the question); relative
+ranking, never an absolute threshold. Session evidence recall@10 on a
+20-question LongMemEval split: 0.520 -> 0.718 with `--keep 8`
+(see `bench/reports/laya-gate1.md`).
+
+```sh
+kodand rerank-serve &                       # once; single model load, ~30s
+KODAND_LAYA_URL=127.0.0.1:8765 kodand recall --repo . --query "..." --laya-filter
+```
+
+Optional env: `KODAND_LAYA_URL` (default `127.0.0.1:8765`), `KODAND_LAYA_MODEL`
+(checkpoint dir). Tradeoff: ~11s extra CPU scoring at the default `limit=10`
+on 2 cores; scales with limit.
+
+## Plug into your coding agent
+
+Three reference adapters, one contract (stdout = JSON chunk array, best-first, `KODAND_BASELINE=1` kill switch honoured):
+
+```sh
+# plugin for opencode, hooks for Claude Code, or any shell:
+pip install kodand
+# write + recall with session-rerank, whole flow:
+KODAND_LAYA_URL=127.0.0.1:8765 kodand recall --repo . --query "..." --laya-filter --json
+```
+
+See [docs/adapter.md](docs/adapter.md) and [docs/adapters/](docs/adapters/) for the
+opencode plugin (~60 lines), Claude Code hook, raw-pipe and optional systemd units.
+
 ## License
 
 Apache-2.0
-
-
