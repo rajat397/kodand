@@ -2,6 +2,7 @@
 kodand.store - SQLite-based memory storage
 """
 
+import json
 import queue
 import sqlite3
 import os
@@ -651,6 +652,54 @@ class Store:
         )
         conn.commit()
         conn.close()
+
+    # ---- K2: memory lifecycle (deep-roots track) ---------------------------------
+    def supersede(self, entry_id: int, replaced_by: int = None, reason: str = None) -> bool:
+        """Mark an entry superseded at WRITE time (lifecycle, not read-time heuristics).
+
+        The row stays on disk with its pointer so provenance is never lost; the
+        default recall path already filters on state='active'.
+        """
+        conn = self._get_conn()
+        cur = conn.execute(
+            "UPDATE memories SET state='superseded', superseded_by=?, updated_at=? "
+            "WHERE id=? AND state='active'",
+            (replaced_by, datetime.now().timestamp(), entry_id)
+        )
+        conn.commit()
+        conn.close()
+        if cur.rowcount:
+            self.log_event("superseded", entry_id=entry_id,
+                           provenance=reason or "write-time lifecycle",
+                           detail=json.dumps({"replaced_by": replaced_by}))
+        return bool(cur.rowcount)
+
+    def correct(self, content: str, replaces_id: int = None, origin: str = "user",
+                scope: str = "repo", session_id: str = None) -> dict:
+        """A correction entry carries the highest trust weight; optionally retires
+        the memory it replaces. origin wins over everything else at ranking time
+        (contract: user corrections outrank any model-written memory)."""
+        entry = self.remember(content=content, scope=scope, session_id=session_id,
+                              memory_type="correction")
+        if replaces_id is not None:
+            self.supersede(replaces_id, replaced_by=entry["key"],
+                           reason=f"{origin}-correction")
+        self.log_event("correction", entry_id=entry["key"],
+                       provenance=origin, detail=json.dumps({"replaces_id": replaces_id}))
+        return entry
+
+    def list_memories_with_supersede_chain(self, entry_id: int) -> List[dict]:
+        """Provenance walk: an entry and everything that superseded it (must stay
+        inspectable - old knowledge is history, not garbage)."""
+        conn = self._get_conn()
+        cur = conn.execute(
+            "SELECT id, content, state, superseded_by, updated_at FROM memories "
+            "WHERE id=? OR superseded_by=? ORDER BY id",
+            (entry_id, entry_id)
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        conn.close()
+        return rows
 
     def get_events(self, kind: str = None, limit: int = 100) -> List[dict]:
         conn = self._get_conn()
