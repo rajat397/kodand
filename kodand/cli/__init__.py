@@ -90,6 +90,12 @@ def main():
     ing_art_p.add_argument("--repo", required=True, help="Repository path")
     ing_art_p.add_argument("--path", required=True, help="Artifact file (md/html/code/image/pdf)")
     ing_art_p.add_argument("--caption", default="", help="Free-text caption (required for images)")
+    asm_p = subparsers.add_parser("assemble", help="K4 block assembly: stable prefix + append-only memory blocks")
+    asm_p.add_argument("--repo", required=True, help="Repository path")
+    asm_p.add_argument("--query", required=True, help="The question/prompt for this turn")
+    asm_p.add_argument("--prefix-file", required=True, help="Path to the STABLE prefix text (must not change mid-session)")
+    asm_p.add_argument("--state-file", required=True, help="Slot table state (freeze block order across turns)")
+    asm_p.add_argument("--limit", type=int, default=10, help="Max memory blocks")
     recalld_p = subparsers.add_parser("recalld", help="TCP recall server (per-repo cache, no spawn per query)")
     recalld_p.add_argument("--host", default="127.0.0.1", help="Bind host (default 127.0.0.1)")
     recalld_p.add_argument("--port", type=int, default=8766, help="Bind port (default 8766)")
@@ -549,6 +555,28 @@ def main():
             print(f"❌ ingest-artifact: {e}", file=sys.stderr)
             sys.exit(2)
         print(json.dumps(status))
+
+    elif args.command == "assemble":
+        from kodand.assemble import assemble
+        from kodand.recall import create_recall_engine
+
+        engine = create_recall_engine(args.repo)
+        results = engine.recall(query=args.query, k=args.limit * 3)
+        rows = [{"sessionId": (e.get("locator") or "-").split("#")[0],
+                 "entryId": e.get("id"),
+                 "content": e.get("content", ""),
+                 "session_p": None}
+                for e in results]
+        prefix = Path(args.prefix_file).read_text(encoding="utf-8")
+        try:
+            out = assemble(prefix, rows, args.query,
+                           state_path=Path(args.state_file),
+                           kill_switch=os.environ.get("KODAND_BASELINE") == "1",
+                           max_blocks=args.limit)
+        except RuntimeError as e:
+            print(f"❌ assemble: {e}", file=sys.stderr)
+            sys.exit(3)
+        print(json.dumps(out))
 
     elif args.command == "rerank-serve":
         from kodand.rerank import serve_tcp
