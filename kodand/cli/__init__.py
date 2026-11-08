@@ -2,26 +2,27 @@
 kodand.cli - Command-line interface for kodand
 """
 
-import sys
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
-from kodand.store import get_store
-from kodand.capture import run_capture_tick, run_capture_loop, CaptureLoop
-from kodand.recall import create_recall_engine, recall
-from kodand.trust import TrustSurface
-from kodand.hooks import before_tool
-from kodand.warmstart import create_warm_start, get_warm_context
-from kodand.team import promote_to_team, drill_poison
-from kodand.swarm import SwarmCoordination
-from kodand.handoff import Handoff
-from kodand.enforcement import EnforcementLadder
+
 from kodand.anchor import get_anchored, resolve_anchor
-from kodand.manifest import flag_conventions, discover_manifests
-from kodand.install import install_harness, uninstall_harness, list_harnesses, init_repo
+from kodand.capture import CaptureLoop, run_capture_loop, run_capture_tick
+from kodand.enforcement import EnforcementLadder
+from kodand.handoff import Handoff
+from kodand.hooks import before_tool
+from kodand.install import init_repo, install_harness, list_harnesses, uninstall_harness
+from kodand.manifest import discover_manifests, flag_conventions
 from kodand.outcome import create_outcome_labeler
+from kodand.recall import create_recall_engine, recall
+from kodand.store import get_store
+from kodand.swarm import SwarmCoordination
+from kodand.team import drill_poison, promote_to_team
+from kodand.trust import TrustSurface
 from kodand.utility import create_utility_scorer
+from kodand.warmstart import create_warm_start, get_warm_context
 
 
 def main():
@@ -85,6 +86,10 @@ def main():
         "fetch-model", help="Download the laya decision-model checkpoint (verified sha256)"
     )
     fetch_model_p.add_argument("--dest", help="Install dir (default ~/.kodand/models/laya-multilingual)")
+    ing_art_p = subparsers.add_parser("ingest-artifact", help="Ingest a file artifact with provenance (K3)")
+    ing_art_p.add_argument("--repo", required=True, help="Repository path")
+    ing_art_p.add_argument("--path", required=True, help="Artifact file (md/html/code/image/pdf)")
+    ing_art_p.add_argument("--caption", default="", help="Free-text caption (required for images)")
     recalld_p = subparsers.add_parser("recalld", help="TCP recall server (per-repo cache, no spawn per query)")
     recalld_p.add_argument("--host", default="127.0.0.1", help="Bind host (default 127.0.0.1)")
     recalld_p.add_argument("--port", type=int, default=8766, help="Bind port (default 8766)")
@@ -356,7 +361,7 @@ def main():
         run_capture_loop(args.repo)
 
     elif args.command == "week":
-        from kodand.measure import north_star_report, format_report
+        from kodand.measure import format_report, north_star_report
         r = north_star_report(args.repo, args.week)
         print(format_report(r))
 
@@ -525,12 +530,23 @@ def main():
         serve(model_path=args.model)
 
     elif args.command == "fetch-model":
-        from kodand.fetch_model import fetch, default_dest
+        from kodand.fetch_model import default_dest, fetch
 
         try:
             status = fetch(Path(args.dest) if args.dest else default_dest())
         except RuntimeError as e:
             print(f"❌ fetch-model: {e}", file=sys.stderr)
+            sys.exit(2)
+        print(json.dumps(status))
+
+    elif args.command == "ingest-artifact":
+        from kodand.artifacts import ingest_artifact
+
+        store = get_store(args.repo)
+        try:
+            status = ingest_artifact(store, args.repo, args.path, caption=args.caption or "")
+        except (RuntimeError, FileNotFoundError) as e:
+            print(f"❌ ingest-artifact: {e}", file=sys.stderr)
             sys.exit(2)
         print(json.dumps(status))
 

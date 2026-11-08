@@ -82,6 +82,17 @@ class Store:
             valid_time TEXT, transaction_time REAL, confidence REAL,
             source_hash TEXT
         );
+        CREATE TABLE IF NOT EXISTS artifacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uri TEXT NOT NULL,
+            sha256 TEXT NOT NULL,
+            kind TEXT,
+            size INTEGER DEFAULT 0,
+            extraction TEXT,
+            n_chunks INTEGER DEFAULT 0,
+            created_at REAL DEFAULT 0,
+            UNIQUE(uri, sha256)
+        );
         CREATE TABLE IF NOT EXISTS causal_links (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             intent_id INTEGER REFERENCES intents(id) NOT NULL,
