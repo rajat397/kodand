@@ -129,3 +129,24 @@ are kept deliberately so the reasoning survives the authors.
 - **D30 — assembly openness is a product-surface property (G3)**: the surface explains
   "what the agent will read next" with K4 block ids/slots from the same assembly
   engine, not a parallel preview.
+
+## First-principles spine (operator-enforced standing rule)
+
+- **D31 — THE FIRST-PRINCIPLES SPINE (enforced at every step)** — operator directive
+  2026-11-08: before building (or gluing) anything, the registered artifact for that
+  step must show, in order: (1) the root-cause problem from first principles with
+  observed triggers and the cost of leaving it unsolved; (2) a survey of the best
+  mechanisms in existing solutions for THAT problem (named competitors and prior art,
+  worth-taking pieces with trade-offs); (3) a derivation from the problem's own
+  properties to our mechanism — any tech choice without a derivation footnote fails
+  review; (4) ground-up build valued over glue; glue is allowed only where the
+  ground-up route was tried AND failed (failure recorded beside it); (5) every
+  step's outputs are checked against this spine — standups, critiques, and reviews
+  examine the derivation before results.
+
+Enforcement mechanics: the rule text lives in the growth ledger
+(`~/growth/experiments/memory-problem-first-principles.md`, "GOVERNING RULE" section)
+and the growth-runs agent definition carries the checklist so every activation sees
+it; standups and /critique apply it to every registered step. First application of
+the spine: decision #1 (hybrid spine + first-principles graph semantics, growth
+`c63f452` and its derivation reply).
