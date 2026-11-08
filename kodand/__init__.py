@@ -8,7 +8,7 @@ failure, and bulky-repo context limits.
 Version: 1.0.0
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from kodand.store import get_store, Store
 from kodand.recall import create_recall_engine, recall

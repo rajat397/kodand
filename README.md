@@ -16,6 +16,18 @@ Kill switch: `KODAND_BASELINE=1` reverts retrieval to plain FTS for every consum
 Adapter examples (opencode plugin ~60 lines, Claude Code hooks, raw pipe, systemd units) live in
 `docs/adapter.md` + `docs/adapters/`.
 
+## Visual interactive memory surface
+
+```sh
+kodand memory-surface --repo ~/work/.kodand/repo-main --port 8881
+# open http://127.0.0.1:8881/
+```
+
+- memory ledger with state badges (active / superseded chains provenance)
+- edit/supersede rows: writes journal your session origin, highest trust weight
+- artifact panel: file versions (uri@sha) with chunk counts
+- next-assembly panel: the exact memory blocks the agent's next prompt will read
+
 ## Install
 
 ```bash

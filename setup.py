@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="kodand",
-    version="0.2.0",
+    version="0.3.0",
     description="Intent-driven memory plane for coding agents - persistent context across sessions, any language, any harness",
     long_description=long_description,
     long_description_content_type="text/markdown",
