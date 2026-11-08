@@ -150,3 +150,36 @@ and the growth-runs agent definition carries the checklist so every activation s
 it; standups and /critique apply it to every registered step. First application of
 the spine: decision #1 (hybrid spine + first-principles graph semantics, growth
 `c63f452` and its derivation reply).
+
+## Question surface (opencode-native) — deep dive, verified 2026-11-08
+
+- **D33 — decisions must reach the operator through opencode's own question surface**,
+  never as a markdown wall. Verified against the binary strings + installed SDK
+  (v1.18.35) + plugin typings:
+
+  1. The TUI has a **native `question` tool** (binary tool-table confirms
+     `question:{...}` rendering + `question.asked/replied/rejected` events). We
+     used it earlier in-session (the `/critique` bar) and got the actual popup.
+  2. `QuestionInfo` schema: `{question, header (<=30, used as popup title),
+     options:[{label, description}], multiple?, custom?}` — **exactly the shape
+     the operator wants** (context + 4-5 label options + recommended + custom).
+  3. HTTP fallback lives on the TUI's local server:
+     - `LIST /api/session/{sessionID}/question` (pending)
+     - `POST /api/session/{sessionID}/question/{requestID}/reply` and `/reject`
+     The TUI's own instance is bound to an unnamed unix-socket inode (checked;
+     fd 30/34 are anonymous), so "hit it from outside" is not the right route.
+  4. The durable answer: **register a plugin tool backed by the plugin SDK** that
+     posts a `QuestionRequest` through the TUI server (sdk v2
+     `session.question`), in-process, so a popup occurs even when the model's
+     own toolset starves the built-in `question` tool mid-session (this sat at
+     the turn where we noticed it, plugin tools are always resolvable).
+  5. Plugin contract confirmed in `@opencode-ai/plugin/dist/tool.d.ts`:
+     `ToolDefinition{description, args(zod), execute(args, ctx)}` — our fallback
+     tool is `growth_question({question, header, options[], multiple?})` posting
+     to `POST /api/session/{sessionID}/question` (serverUrl comes free via
+     `PluginInput.serverUrl`), and blocking on `GET .../question` until answered.
+
+Enforcement: growth-runs agent definition amended to prefer the native tool and
+fall back to the plugin tool (both popup-level); numbered-text-only as a last
+resort. Implementation task registered: plugin `growth-question.ts` (one file,
+~40 lines) shipping with the growth-runs agent.
