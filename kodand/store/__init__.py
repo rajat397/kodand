@@ -19,6 +19,10 @@ class Store:
         self.db_path = os.path.join(self.repo_path, ".kodand", "bridge.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_db()
+        try:
+            self._migrate_add_salience()
+        except Exception:
+            pass
 
     def _get_conn(self):
         conn = sqlite3.connect(self.db_path)
@@ -40,7 +44,8 @@ class Store:
             superseded_by INTEGER,
             content_hash TEXT,
             state TEXT DEFAULT 'active',
-            memory_type TEXT DEFAULT 'reference'
+            memory_type TEXT DEFAULT 'reference',
+            salience TEXT DEFAULT 'auto-low'
         );
         CREATE TABLE IF NOT EXISTS intents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -400,8 +405,18 @@ class Store:
                 except Exception:
                     pass
 
+    def _migrate_add_salience(self):
+        """P7 migration: add salience column to pre-v0.3 stores (idempotent)."""
+        conn = self._get_conn()
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(memories)").fetchall()]
+        if "salience" not in cols:
+            conn.execute("ALTER TABLE memories ADD COLUMN salience TEXT DEFAULT 'auto-low'")
+            conn.commit()
+        conn.close()
+
     def remember(self, content: str, surface: str = "text", locator: str = "",
-                 scope: str = "repo", session_id: str = None, memory_type: str = "reference") -> dict:
+                 scope: str = "repo", session_id: str = None, memory_type: str = "reference",
+                 salience: str = None) -> dict:
         # Secret/PII exclusion at write time (Tranche 2.4)
         try:
             from kodand.scope import check_write
@@ -412,12 +427,14 @@ class Store:
             raise
         except Exception:
             pass
+        from kodand.salience import salience_of
+        tier = salience_of(content, memory_type, salience)
         conn = self._get_conn()
         now = datetime.now().timestamp()
         cur = conn.execute(
-            "INSERT INTO memories (content, surface, locator, scope, session_id, created_at, updated_at, memory_type, state) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')",
-            (content, surface, locator, scope, session_id or "", now, now, memory_type)
+            "INSERT INTO memories (content, surface, locator, scope, session_id, created_at, updated_at, memory_type, salience, state) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')",
+            (content, surface, locator, scope, session_id or "", now, now, memory_type, tier)
         )
         entry_id = cur.lastrowid
         # H2.1 hybrid: real MiniLM 384d async, off hot path (~5ms, not 10s)

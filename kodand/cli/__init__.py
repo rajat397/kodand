@@ -100,6 +100,12 @@ def main():
     surf_p.add_argument("--repo", required=True, help="Repository path")
     surf_p.add_argument("--port", type=int, default=8881)
     surf_p.add_argument("--host", default="127.0.0.1")
+    cons_p = subparsers.add_parser("consolidate", help="D5 sleep-time consolidation worker (proposes; human approves)")
+    cons_p.add_argument("--repo", required=True, help="Repository path")
+    cons_p.add_argument("--limit", type=int, default=500, help="Max rows scanned per batch")
+    cons_p.add_argument("--list", action="store_true", help="List pending merge candidates")
+    cons_p.add_argument("--resolve", type=int, help="Resolve queue id")
+    cons_p.add_argument("--decision", choices=["merged", "rejected"], default="merged")
     recalld_p = subparsers.add_parser("recalld", help="TCP recall server (per-repo cache, no spawn per query)")
     recalld_p.add_argument("--host", default="127.0.0.1", help="Bind host (default 127.0.0.1)")
     recalld_p.add_argument("--port", type=int, default=8766, help="Bind port (default 8766)")
@@ -581,6 +587,18 @@ def main():
             print(f"❌ assemble: {e}", file=sys.stderr)
             sys.exit(3)
         print(json.dumps(out))
+
+    elif args.command == "consolidate":
+        from kodand.consolidate import list_pending, propose, resolve
+        from kodand.store import get_store
+
+        st = get_store(args.repo)
+        if args.resolve is not None:
+            print(json.dumps(resolve(st, args.resolve, args.decision)))
+        elif args.list:
+            print(json.dumps(list_pending(st), indent=1))
+        else:
+            print(json.dumps(propose(st, limit=args.limit)))
 
     elif args.command == "memory-surface":
         from kodand.surface import serve
