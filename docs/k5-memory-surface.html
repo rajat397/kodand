@@ -74,10 +74,10 @@
   <button title="manual correction" aria-label="Write Correction">+ Correction</button>
 </header>
 <nav class="tabs" role="tablist" aria-label="views">
-  <button class="tab" role="tab" aria-selected="true">Memory ledger</button>
+  <button class="tab" id="tab-ledger" role="tab" aria-selected="true" data-tab="ledger">Memory ledger</button>
   <button class="tab" role="tab" aria-selected="false">Artifacts</button>
   <button class="tab" role="tab" aria-selected="false">Assembled (K4)</button>
-  <button class="tab" role="tab" aria-selected="false" id="tab-entities">Entities</button>
+  <button class="tab" id="tab-entities" role="tab" aria-selected="false" data-tab="entities">Entities</button>
   <button class="tab" role="tab" aria-selected="false">Events</button>
 </nav>
 <main>
@@ -222,6 +222,23 @@ document.addEventListener("keydown", (e) => {
     const back = document.getElementById("correctionModal"); if (back) {
       back.classList.remove("open"); back.setAttribute("aria-hidden","true"); } }
 });
+document.getElementById("tab-entities").addEventListener("click", (e) => {
+  const grid = document.querySelector("main .grid");
+  const cards = document.getElementById("entityCards");
+  grid.style.display = "none";
+  cards.style.display = "flex";
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", "false"));
+  e.target.setAttribute("aria-selected", "true");
+  renderEntities();
+});
+document.getElementById("tab-ledger").addEventListener("click", (e) => {
+  const grid = document.querySelector("main .grid");
+  const cards = document.getElementById("entityCards");
+  grid.style.display = "";
+  if (cards) cards.style.display = "none";
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", "false"));
+  e.target.setAttribute("aria-selected", "true");
+});
 document.getElementById("q").addEventListener("input", (e) => { renderLedger(e.target.value); });
 document.getElementById("q").addEventListener("keydown", (e) => {
   if (e.key === "Enter") renderLedger(e.target.value); });
@@ -265,7 +282,13 @@ document.addEventListener("click", async (e) => {
         <div style="margin-top:8px"><button data-entity-back>← back to entities</button></div>
       </div>`;
   }
-  if (e.target.closest("[data-entity-back]")) await renderEntities();
+  if (e.target.closest("[data-entity-back]")) {
+    const grid = document.querySelector("main .grid");
+    const cards = document.getElementById("entityCards");
+    grid.style.display = "none";
+    if (cards) cards.style.display = "flex";
+    await renderEntities();
+  }
 });
 (async () => { await renderLedger(); await renderRight(); await renderAssembly(); await renderEntities(); })();
 </script>

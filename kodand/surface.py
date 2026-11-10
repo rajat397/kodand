@@ -128,6 +128,7 @@ def make_handler(service: MemoryService):
             self.send_response(200)
             self.send_header("content-type", "text/html; charset=utf-8")
             self.send_header("content-length", str(len(body)))
+            self.send_header("cache-control", "no-store")
             self.end_headers()
             self.wfile.write(body)
 
