@@ -117,3 +117,95 @@ def assemble(
         "assembled_sha256": hashlib.sha256(assembled.encode()).hexdigest()[:16],
         "kill_switch": kill_switch,
     }
+
+
+
+
+def assemble_v2(
+    prefix: str,
+    rows: list[dict],
+    question: str,
+    *,
+    entities: list[str] | None = None,
+    store=None,
+    state_path: Path | None = None,
+    kill_switch: bool = False,
+    max_blocks: int = 10,
+) -> dict:
+    """D4 state-blocks-first assembly (decision #4).
+
+    Contract:
+    1. every entity in `entities` emits exactly ONE STATE-BLOCK first — the D3
+       value at now, with its authority visible.
+    2. episodic blocks never displace a STATE-BLOCK unless the block budget is
+       exhausted.
+    3. KODAND_BASELINE=1 => the v1 row-block path byte-identical (kill_switch).
+    4. a STATE-BLOCK id changes only when the graph changes (content-addressed);
+       ranking reshuffles never touch it.
+    """
+    if kill_switch:
+        return assemble(prefix, rows, question,
+                        state_path=state_path, kill_switch=False, max_blocks=max_blocks)
+
+    from kodand.statemap import get_state  # local import: no cycle
+
+    state = load_state(state_path) if state_path else {"order": {}, "prefix": None, "state_slots": {}}
+    prefix_hash = hashlib.sha256(prefix.strip().encode()).hexdigest()
+    if state.get("prefix") and state["prefix"] != prefix_hash:
+        raise RuntimeError("stable prefix changed mid-session; start a new session")
+
+    state_slots = state.setdefault("state_slots", {})
+    blocks: list[dict] = []
+
+    for ent in (entities or []):
+        st = get_state(store, ent) if store else None
+        if not st or not st.get("current"):
+            continue
+        cur = st["current"]
+        text = (f"[STATE {ent}] {cur['content']} "
+                f"(authority: {cur.get('authority','reference')}; memory #{cur.get('id')})")
+        bid = block_id(text)
+        slot = state_slots.get(bid)
+        if slot is None:
+            slot = len(state_slots)
+            state_slots[bid] = slot
+        blocks.append({"id": bid, "slot": slot, "provenance": f"state:{ent}",
+                       "content": text, "display": text, "kind": "state"})
+
+    # episodic tail: K4 v1 row-blocks, budget remaining after state blocks
+    remain = max(0, max_blocks - len(blocks))
+    episodic = [_block_from_memory(row, 0) for row in rows[:remain]]
+    ep_state = {"order": state.get("order", {})}
+    known = ep_state["order"]
+    for b in episodic:
+        known_s = known.get(b["id"])
+        if known_s is None:
+            nxt = (max(known.values()) + 1) if known else 0
+            known[b["id"]] = known_s = nxt
+        b["slot"] = known_s
+    state["order"] = known
+    episodic.sort(key=lambda b: b["slot"])
+    for b in episodic:
+        b["kind"] = "episodic"
+    blocks += episodic
+
+    if state_path:
+        state["prefix"] = prefix_hash
+        save_state(state_path, state)
+
+    memory_block_text = "\n".join(
+        f"MEMORY-BLOCK[{b['slot']} {b['id']}|{b.get('kind','episodic')}]: {b['display']}"
+        for b in blocks)
+    assembled = (
+        (prefix.rstrip() + "\n\n" if prefix.strip() else "")
+        + (memory_block_text + "\n\n" if memory_block_text else "MEMORY-BLOCKS: none\n\n")
+        + f"Question: {question}\nAnswer:"
+    )
+    return {
+        "prefix_hash": prefix_hash,
+        "blocks": [{"id": b["id"], "slot": b["slot"], "provenance": b["provenance"],
+                    "kind": b.get("kind", "episodic")} for b in blocks],
+        "assembled": assembled,
+        "assembled_sha256": hashlib.sha256(assembled.encode()).hexdigest()[:16],
+        "kill_switch": False,
+    }

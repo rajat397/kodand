@@ -57,8 +57,9 @@ def _rows_for(store, entity: str, as_of: float | None) -> list[dict]:
             # sqlite LIKE has no []-classes: dash and space variants are separate
             # patterns, and '_' in LIKE is a single-char wildcard (harmless here).
             variants_forms = {
-                v,                      # canonical dash form (keys use dashes)
-                v.replace("-", " "),    # human spaced form
+                v,                       # canonical dash form (keys use dashes)
+                v.replace("-", " "),     # human spaced form
+                v.replace("-", "."),     # dotted form (typed keys are punctuated)
             }
             for variant in variants_forms:
                 pattern = f"%{variant}%"
