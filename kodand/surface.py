@@ -59,6 +59,10 @@ class MemoryService:
         chains = {r["id"]: self.store.list_memories_with_supersede_chain(r["id"]) for r in rows[:80]}
         return {"repo": self.repo, "rows": rows, "chains": {str(k): v for k, v in chains.items()}}
 
+    def state(self, entity: str, as_of=None) -> dict:
+        from kodand.statemap import get_state
+        return get_state(self.store, entity, as_of=as_of) or {"entity": entity, "current": None}
+
     def artifacts(self) -> dict:
         conn = self.store._get_conn()
         rows = [dict(r) for r in conn.execute(
@@ -131,6 +135,10 @@ def make_handler(service: MemoryService):
                 return self._html(_HTML_PATH.read_text(encoding="utf-8"))
             if u.path == "/api/ledger":
                 return self._json(self.service.ledger(q.get("q", [""])[0]))
+            if u.path == "/api/state":
+                return self._json(self.service.state(
+                    q.get("entity", [""])[0],
+                    float(q["as_of"][0]) if "as_of" in q else None))
             if u.path == "/api/artifacts":
                 return self._json(self.service.artifacts())
             if u.path == "/api/events":
