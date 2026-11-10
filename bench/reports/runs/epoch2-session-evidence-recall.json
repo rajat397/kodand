@@ -1,0 +1,30 @@
+{
+ "kodand-full500": {
+  "n": 500,
+  "no_gold_questions": 0,
+  "sum": 431.13333333333344,
+  "recall": 0.8622666666666668,
+  "per_type": {
+   "temporal-reasoning": 0.7893483709273184,
+   "knowledge-update": 0.9807692307692307,
+   "multi-session": 0.8394736842105265,
+   "single-session-user": 0.9857142857142858,
+   "single-session-preference": 0.7,
+   "single-session-assistant": 0.8571428571428571
+  }
+ },
+ "kodand-full500-laya-sess": {
+  "n": 500,
+  "no_gold_questions": 0,
+  "sum": 415.4166666666668,
+  "recall": 0.8308333333333336,
+  "per_type": {
+   "temporal-reasoning": 0.7541353383458647,
+   "knowledge-update": 0.9487179487179487,
+   "multi-session": 0.7903508771929825,
+   "single-session-user": 0.9857142857142858,
+   "single-session-preference": 0.7333333333333333,
+   "single-session-assistant": 0.8035714285714286
+  }
+ }
+}

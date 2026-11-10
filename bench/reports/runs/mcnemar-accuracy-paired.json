@@ -1,0 +1,13 @@
+{
+ "artifact": "McNemar exact two-sided paired test, accuracy, baseline vs H64 hybrid",
+ "n_pairs": 499,
+ "agree": 399,
+ "baseline_only_correct": 43,
+ "hybrid_only_correct": 57,
+ "p_two_sided_exact": 0.1933,
+ "sources": [
+  "data/runs/kodand-full500/report.json",
+  "data/runs/kodand-full500-hybrid-H64-archive/report.json"
+ ],
+ "note": "epoch2-paired.json (28W/65L) is a DIFFERENT pairing: evidence-recall laya-sess vs baseline, not this one."
+}

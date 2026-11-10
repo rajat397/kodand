@@ -7,7 +7,7 @@ and safety gates in the box. Works finish-offline; pip in 60 seconds; adapter fo
 any harness that can shell out.
 
 ![status](https://img.shields.io/badge/status-v0.3.0-blue)
-![tests](https://img.shields.io/badge/tests-53%2F53-brightgreen)
+![tests](https://img.shields.io/badge/tests-82%2F82-brightgreen)
 ![python](https://img.shields.io/badge/python-3.8%2B-green)
 
 ---
@@ -26,31 +26,53 @@ any harness that can shell out.
 10. [CLI surface](#cli-surface)
 11. [Licence](#licence)
 
-## Quickstart (pip, 60 seconds)
+## Quickstart (~5 min, including the model download)
 
 ```sh
-pip install kodand                    # zero-dep core: FTS recall
-pip install "kodand[laya]"            # CPU decision-model rerank tier
-kodand fetch-model                    # ~644 MB checkpoint, sha-verified -> ~/.kodand/
-kodand rerank-serve &                 # scoring daemon, ~830 MB, once per boot
+# tier 1 — plain FTS memory, works with zero extras, 60 seconds flat:
+pip install kodand && kodand init
+kodand recall --repo . --query "which package manager did we pick" --json
+
+# tier 2 — the CPU decision-model rerank (+644 MB checkpoint, +~1.3 GB resident daemon):
+pip install "kodand[laya]" && kodand fetch-model && kodand rerank-serve &
 KODAND_LAYA_URL=127.0.0.1:8765 kodand recall --repo . --query "..." --laya-filter --json
 ```
 
-Every order of operations (plain FTS, retrieval daemon, the rerank tier, the
-human surface) works even if one peer is down. Kill switch: `KODAND_BASELINE=1`
-reverts to plain FTS for every consumer in one env var.
+Kill switch: `KODAND_BASELINE=1` reverts every consumer (CLI, daemons,
+assembler, surfaces) to plain FTS in one env var — tested at p95 = 113 ms with
+zero laya calls (`docs/adapters/tests/smoke.py`).
 
 ## What problem this solves
 
-Coding agents are stateless. Every session starts blank, which forces the same
-three failure classes to repeat across 100-session histories:
+Thursday, your agent makes a decision in a session. Next Tuesday, a different agent
+session re-does the migration the wrong way because the decision was never somewhere the
+model reads. Claude Code, opencode, Cursor, Codex: every one of them starts a session
+with amnesia, and the common fixes are a growing CLAUDE.md you babysit, or a hosted
+memory API that prices every turn and holds your code's history on someone else's box.
 
-| failure class | where it hit us | what kodand does about it |
-|---|---|---|
-| evidence found but answers still wrong | session recall >80% while answers lagged | citation contract (per-row sessionId/entryId, conflict resolution-by-date, explicit abstain) |
-| newer facts compete with older | knowledge-update regressions at ranking time | write-time `supersede` lifecycle; corrections carry provenance and highest trust |
-| real artifacts never become memory | pdf/md/html/code stayed invisible | artifact registry `(uri, sha256)` + provenance prefix in every chunk |
-| context churn breaks caches and consistency | 65 s mean search every turn re-shaped context | content-addressed append-only memory blocks with a stable prefix |
+Kodand is the local, offline answer: **a SQLite file per repo, provenance on every fact
+(who said it, from which session or document, and when it was true), corrections that
+structurally outrank model-written memory, and prompt assembly that stays friendly to
+provider caches.** If your constraint includes "this code never leaves my box" or "no
+per-turn memory bill", kodand is the one to compare first.
+
+How it compares (rows are the failure classes users actually feel; cells are as-built,
+with sources):
+
+| dimension | mem0 | Letta/MemGPT | supermemory | claudemem | graphify | kodand |
+|---|---|---|---|---|---|---|
+| local/offline, no per-turn memory bill | partial | partial | absent | partial | partial | **full** |
+| provenance per fact (who/where/when/valid) | partial | partial | partial | absent | partial | **full** |
+| user correction wins structurally over model memory | absent | partial | absent | absent | partial | **full** |
+| documents as versioned memory (pdf/md/html/code) | absent | absent | partial | absent | absent | **full** |
+| cache-aware prompt assembly | absent | absent | absent | absent | absent | **full** |
+| semantic consolidation (LLM fusion at capture) | full | partial | full | partial | absent | roadmap (D5 build) |
+| temporal knowledge graph | partial | absent | absent | absent | **full** | roadmap (D3 edges) |
+| human-visible memory surface | partial | partial | partial | absent | partial | **full** |
+
+The two roadmap rows are the registered Q4 pillars (DECISIONS D1–D9,
+`experiments/memory-problem-first-principles.md`). No marketing word appears in any
+committed cell; each names an in-repo mechanism or stays "roadmap/q4/partial/absent".
 
 ## What kodand does / does NOT do
 
@@ -63,22 +85,35 @@ three failure classes to repeat across 100-session histories:
 ✔ every human correction is an on-disk event with `provenance=user` (highest trust)
 ✖ never sends data anywhere: stores and reads everything locally
 ✖ never executes recalled text as instructions: returns text, nothing more
-✖ never fabricates: every number in this README cites a run report under `bench/reports/`
+✖ never fabricates: every number in this README cites a run report under `bench/reports/runs/`
 
-## Measured results (honest)
+## Measured numbers (honest, all committed under `bench/reports/runs/`)
 
-LongMemEval-500, identical judge/answering model (nvidia/nemotron-3.5-lightning-30b-a3b):
+LongMemEval-500, identical judge and answering model (nvidia/nemotron-3.5-lightning-30b-a3b):
 
-| config | answer accuracy | evidence recall@10 | note |
-|---|---|---|---|
-| plain FTS baseline | 270/500 (0.540) | 0.862 | in-repo run report |
-| shipped hybrid (BM25 seeds + laya fills) | **284/500 (0.568)** | 0.825 | +14 vs baseline, McNemar p=0.19 (directional, not proven significant) |
-| batch: laya addresses the HARD split, cost a recorded -3.7pp evidence coverage on standard text | | | tradeoff documented in DECISIONS D7/D11 |
+| config | answer accuracy | evidence recall@10 |
+|---|---|---|
+| plain FTS baseline | 270/500 (0.540) | 0.8623 (`runs/epoch2-session-evidence-recall.json`) |
+| shipped hybrid | 284/499 (0.569; one question never evaluated) | 0.8250 (`runs/epoch2-hybrid-evidence.json`) |
 
-Per-type wins: temporal 0.496->0.564, knowledge-update 0.756->0.821,
-single-session-user 0.743->0.814. Regression class victim: multi-session.
-Also verified: 3 different ranking families were measured, killed levers are
-registered with numbers (m3 recency 0-w/1-l; budget 8->10 no-op across all).
+- accuracy delta +14 questions: **McNemar exact two-sided p = 0.1933 on 499 paired
+  questions** (`runs/mcnemar-accuracy-paired.json`) — directional, not proven
+  significant. (The `runs/epoch2-paired.json` file is a different pairing:
+  evidence-recall for the session-rank run vs baseline — not this one.)
+- evidence-coverage tradeoff, per run: hybrid **-3.7 pp** vs baseline
+  (0.8623 -> 0.8250). The session-rank earlier run measured -3.1 pp
+  (0.8623 -> 0.8308, leaner budget) — the two numbers are different runs and are
+  kept separate on purpose.
+- per-type: temporal 0.496 -> 0.568 (75/132 on the hybrid run), knowledge-update
+  0.756 -> 0.821, single-session-user 0.743 -> 0.814; multi-session regressed
+  (0.368 -> 0.338).
+- killed levers, with verdicts: recency ranking (0 wins / 1 loss), budget
+  8->10 (no-op: identical on every measured question), ratio tweak (+0.0104
+  subset only). Full ledger: `docs/DECISIONS.md` D12/D25.
+
+What this means for a user: the accuracy edge is directional, not proven; the
+offline/provenance/correction columns in the table above are proven in-repo, and
+the memory surface + journals are the auditable loop around them.
 
 ## Architecture at a glance
 
@@ -96,11 +131,7 @@ flowchart LR
   end
 ```
 
-Three skill levels of detail:
-- [HLD](docs/HLD.md) — components, data flow, trust boundaries, deployment shapes
-- [LLD](docs/LLD.md) — module-level detail: schemas, function contracts, JSON shapes, CLI, env vars
-- [ARCHITECTURE](docs/ARCHITECTURE.md) — the root-cause narrative, process architecture, cross-cutting invariants, extension protocol, and test architecture
-- [DECISIONS](docs/DECISIONS.md) — every decision with its evidence; dead levers recorded with numbers
+Detail levels: see [Documentation set](#documentation-set).
 
 ## Adapter for your harness
 
@@ -148,7 +179,7 @@ kodand memory-surface --repo ~/work/.kodand/repo-main --port 8881
 - [DECISIONS](docs/DECISIONS.md) — D1..D30 decisions with evidence and dead-lever records
 - [adapter contract](docs/adapter.md) — CLI/daemon/assembly pipes for any harness
 - memory surface design ([HTML mock](docs/k5-memory-surface.html))
-- benchmark & safety reports: `bench/reports/`, `bench/safety/`
+- benchmark & safety reports: `bench/reports/runs/`, `bench/safety/`
 
 ## CLI surface
 

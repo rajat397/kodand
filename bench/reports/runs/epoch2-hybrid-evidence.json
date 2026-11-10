@@ -1,0 +1,6 @@
+{
+ "run": "kodand-full500-hybrid-H64-archive",
+ "recall@10": 0.825,
+ "n": 499,
+ "computed": "from stored searchResults, 2026-11-10"
+}
