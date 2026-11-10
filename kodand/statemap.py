@@ -156,3 +156,39 @@ def resolve_entity(store, phrase: str) -> str | None:
     finally:
         conn.close()
     return canonical_key(phrase)
+
+
+def entities(store) -> list[dict]:
+    """List distinct typed entities from store content (deterministic, no LLM).
+
+    Derived from the salience gate's typed-fact rule (P7): rows whose content
+    matches `key: value` shape are entity states. Returns counts + authority
+    spread for the surface's entity picker.
+    """
+    conn = store._get_conn()
+    rows = [dict(r) for r in conn.execute(
+        "SELECT id, content, memory_type, state, superseded_by, created_at, updated_at "
+        "FROM memories WHERE state IN ('active','superseded') ORDER BY id").fetchall()]
+    conn.close()
+    key_pattern = re.compile(r"^\s*([a-z][a-z0-9_-]{2,32})\s*:\s", re.IGNORECASE)
+    out: dict[str, dict] = {}
+    for r in rows:
+        m = key_pattern.match(r["content"] or "")
+        if not m:
+            continue
+        key = canonical_key(m.group(1))
+        if not key or key in ("and", "the", "not", "for"):
+            continue
+        item = out.setdefault(key, {"entity": key, "rows": 0, "authorities": set(),
+                                     "active": 0, "superseded": 0})
+        item["rows"] += 1
+        item["authorities"].add(r["memory_type"])
+        if r["state"] == "active":
+            item["active"] += 1
+        else:
+            item["superseded"] += 1
+    result = []
+    for item in out.values():
+        item["authorities"] = sorted(item["authorities"])
+        result.append(item)
+    return sorted(result, key=lambda x: -x["rows"])

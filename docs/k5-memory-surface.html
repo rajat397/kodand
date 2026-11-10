@@ -77,6 +77,7 @@
   <button class="tab" role="tab" aria-selected="true">Memory ledger</button>
   <button class="tab" role="tab" aria-selected="false">Artifacts</button>
   <button class="tab" role="tab" aria-selected="false">Assembled (K4)</button>
+  <button class="tab" role="tab" aria-selected="false" id="tab-entities">Entities</button>
   <button class="tab" role="tab" aria-selected="false">Events</button>
 </nav>
 <main>
@@ -235,7 +236,38 @@ document.getElementById("saveCorrection").addEventListener("click", async () => 
   back.classList.remove("open"); back.setAttribute("aria-hidden","true");
   await renderLedger(document.getElementById("q").value); await renderRight();
 });
-(async () => { await renderLedger(); await renderRight(); await renderAssembly(); })();
+async function renderEntities() {
+  const data = await jGET("/api/entities");
+  const el = document.getElementById("entityCards") || document.createElement("div");
+  el.id = "entityCards";
+  el.style.display = "flex"; el.style.flexDirection = "column"; el.style.gap = "10px";
+  el.innerHTML = (data.entities||[]).map(ent => `
+    <div class="card" data-entity="${ent.entity}" tabindex="0">
+      <h3 style="margin:0 0 6px">${esc(ent.entity)}
+        <span class="chip ${ent.active? 'on':'super'}" style="margin-left:8px">
+          ${ent.active? 'active' : 'superseded'} ×${ent.active||ent.superseded}</span></h3>
+      <div class="hint">authority: ${esc((ent.authorities||[]).join(", "))} · rows: ${ent.rows}</div>
+      <button data-entity-view="${ent.entity}" style="margin-top:8px">View current state →</button>
+    </div>`).join("") || '<p class="hint">No typed entities yet — memories with "key: value" facts become entities.</p>';
+  if (!document.getElementById("entityCards")) document.querySelector("main").prepend(el.parentElement || el);
+}
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-entity-view]");
+  if (btn) {
+    const st = await jGET("/api/state?entity=" + encodeURIComponent(btn.dataset.entityView));
+    const el = document.getElementById("entityCards");
+    if (el) el.innerHTML = `
+      <div class="card" tabindex="0">
+        <h3 style="margin:0 0 6px">[STATE ${esc(st.entity)}] current</h3>
+        <div class="content">${esc(st.current && st.current.content || "not set")}</div>
+        <div class="hint">authority: ${esc(st.current && st.current.authority || "n/a")}
+          · memory #${st.current && st.current.id || "-"}</div>
+        <div style="margin-top:8px"><button data-entity-back>← back to entities</button></div>
+      </div>`;
+  }
+  if (e.target.closest("[data-entity-back]")) await renderEntities();
+});
+(async () => { await renderLedger(); await renderRight(); await renderAssembly(); await renderEntities(); })();
 </script>
 </body>
 </html>
