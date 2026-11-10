@@ -149,6 +149,17 @@ def assemble_v2(
 
     from kodand.statemap import get_state  # local import: no cycle
 
+    # P7 no-pollution gate: episodic tail excludes auto-low rows (chatter) —
+    # salience lives on the row (D2/D5), so the assembly can drop them honestly.
+    if store is not None:
+        c = store._get_conn()
+        keep_sn = {r["id"] for r in c.execute(
+            "SELECT id FROM memories WHERE salience NOT IN ('auto-low') OR memory_type='correction'").fetchall()}
+        c.close()
+        rows = [r for r in rows if isinstance(r.get("entryId"), int) and r["entryId"] in keep_sn]
+
+    if state_path is not None and not isinstance(state_path, Path):
+        state_path = Path(state_path)
     state = load_state(state_path) if state_path else {"order": {}, "prefix": None, "state_slots": {}}
     prefix_hash = hashlib.sha256(prefix.strip().encode()).hexdigest()
     if state.get("prefix") and state["prefix"] != prefix_hash:

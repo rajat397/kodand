@@ -192,3 +192,35 @@ def entities(store) -> list[dict]:
         item["authorities"] = sorted(item["authorities"])
         result.append(item)
     return sorted(result, key=lambda x: -x["rows"])
+
+
+def turn_entities(store, question: str, rows: list[dict], top: int = 3) -> list[str]:
+    """P7 read gate: derive the entities this turn touches, deterministically.
+
+    Fromprob the registered P7 gates: the agent surfaces relevant past learnings
+    when the current task touches them — typed keys named in the question or the
+    recalled rows. Deterministic; no LLM; input rows come from the recall path.
+    """
+    typed = {e["entity"]: e for e in entities(store)}
+    if not typed:
+        return []
+    q_canon = canonical_key(question) or ""
+    q_words = q_canon.replace("-", " ") if q_canon else ""
+    scored: list[tuple[int, str]] = []
+    for key, meta in typed.items():
+        key_dash = key
+        key_spaced = key.replace("-", " ")
+        score = 0
+        if key_dash in q_canon or key_spaced in q_words:
+            score += 2  # named in the question
+        for r in rows:
+            content = (r.get("content") or "").lower()
+            if key_dash in content or key_spaced in content:
+                score += 1  # recalled evidence touches it
+            sids = (r.get("sessionId") or "").lower()
+            if key_dash in sids:
+                score += 1
+        if score:
+            scored.append((score, key))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    return [key for _, key in scored[:top]]

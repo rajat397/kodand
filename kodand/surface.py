@@ -80,7 +80,8 @@ class MemoryService:
         return {"events": self.store.get_events(kind=kind, limit=limit)}
 
     def assembly(self, query: str, prefix: str, max_blocks: int = 6) -> dict:
-        from kodand.assemble import assemble as k4assemble
+        from kodand.assemble import assemble_v2 as k4assemble_v2
+        from kodand.statemap import turn_entities
         results = self.engine.recall(query=query, k=max_blocks * 3)
         rows = [{
             "sessionId": (e.get("locator") or "-").split("#")[0],
@@ -88,9 +89,10 @@ class MemoryService:
             "content": e.get("content", ""),
         } for e in results]
         state = Path(os.path.expanduser(f"~/.kodand/surface-assemble-{sha256(self.repo.encode()).hexdigest()[:10]}.json"))
-        out = k4assemble(prefix, rows, query, state_path=state,
-                         kill_switch=os.environ.get("KODAND_BASELINE") == "1",
-                         max_blocks=max_blocks)
+        kill = os.environ.get("KODAND_BASELINE") == "1"
+        ents = [] if kill else turn_entities(self.store, query, rows)
+        out = k4assemble_v2(prefix, rows, query, entities=ents, store=self.store,
+                            state_path=state, kill_switch=kill, max_blocks=max_blocks)
         return out
 
     def correct(self, content: str, replaces_id: int | None = None) -> dict:
