@@ -32,7 +32,7 @@ Coding agent harness (any)
       ▼
  ┌─ kodand core processes ─────────────────────────────┐
  │  kodand recalld (:8766)    read-side warm daemon    │
- │  kodand rerank-serve(:8765) side-side rank daemon   │  ← shared 830 MB laya model
+ │  kodand rerank-serve(:8765) side-side rank daemon   │  ← shared ~1.3 GB laya model
  │  kodand memory-surface(:8881) human UI              │
  │  kodand mcp (stdio)        MCP server               │
  └─────────────────────────────────────────────────────┘
@@ -131,7 +131,7 @@ tweak ~0.0104 std didn't generalize. History in `experiments/*-result.md`.
 
 - AMD Ryzen 3 3250U, 2 cores, 5.8 GB. The full benchmark run saturates both
   cores when reranking 30-40 candidates; per-runnable latency stats in LLD §10.
-- measured: laya ~830 MB; recalld ~50 MB; renderer ~150 MB; as a rule of thumb
+- measured: laya ~1.3 GB resident (laya-gate1.md); recalld ~50 MB; renderer ~150 MB; as a rule of thumb
   we keep the *surface* UI light (stdlib; no React) on purpose.
 
 ## 5. Extension protocol

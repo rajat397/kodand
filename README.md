@@ -98,13 +98,15 @@ LongMemEval-500, identical judge and answering model (nvidia/nemotron-3.5-lightn
 
 - accuracy delta +14 questions: **McNemar exact two-sided p = 0.1933 on 499 paired
   questions** (`runs/mcnemar-accuracy-paired.json`) — directional, not proven
-  significant. (The `runs/epoch2-paired.json` file is a different pairing:
+  significant. Full accuracy/per-type rows in
+  `runs/accuracy-baseline-vs-hybrid.json` (denominators: hybrid run covered 499/500
+  questions; never mixed with the 500-row baseline). (The `runs/epoch2-paired.json` file is a different pairing:
   evidence-recall for the session-rank run vs baseline — not this one.)
 - evidence-coverage tradeoff, per run: hybrid **-3.7 pp** vs baseline
   (0.8623 -> 0.8250). The session-rank earlier run measured -3.1 pp
   (0.8623 -> 0.8308, leaner budget) — the two numbers are different runs and are
   kept separate on purpose.
-- per-type: temporal 0.496 -> 0.568 (75/132 on the hybrid run), knowledge-update
+- per-type: temporal 0.496 -> 0.564 (75/132 on the hybrid run), knowledge-update
   0.756 -> 0.821, single-session-user 0.743 -> 0.814; multi-session regressed
   (0.368 -> 0.338).
 - killed levers, with verdicts: recency ranking (0 wins / 1 loss), budget
@@ -121,7 +123,7 @@ the memory surface + journals are the auditable loop around them.
 flowchart LR
   H[harness: opencode / claude code / raw pipe] -- JSON rows --> R[recall engine]
   R --> F[(sqlite: FTS5 + vec + artifacts + events)]
-  R --> L[laya rerank daemon :8765<br/>~830 MB, once per boot]
+  R --> L[laya rerank daemon :8765<br/>~1.3 GB resident[bench/reports/laya-gate1.md]
   R --> AS[assemble: K4 blocks<br/>stable-prefix + append-only slots]
   H -- corrections/supersede --> U[memory surface :8881<br/>K5 UI, stdlib http]
   U --> F
@@ -199,7 +201,7 @@ memory surface design mock stay under their own attribution (see
 
 ```
 kodand/  code (store, recall, rerank, artifacts, assemble, surface, cli, mcp, hooks...)
-tests/   53 tests incl. G1-G5 browser gates (verify_k5.py, screenshot artifacts)
+tests/   82 tests incl. G1-G5 browser gates (verify_k5.py, screenshot artifacts)
 bench/   safety corpus + scanner, adversarial-30, reports incl. honest negatives
 docs/    HLD, LLD, ARCHITECTURE, DECISIONS, adapter contract, surface design
 ```

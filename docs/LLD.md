@@ -17,7 +17,7 @@ kodand/
   scope.py                 # write-path secret/PII detector list (KEY_PATTERNS)
   capture/  hooks/  mcp/  install/   # harness surface
   cli/__init__.py          # argparse CLI: init/remember/recall/rerank/...
-tests/                     # 53 tests (store, lifecycle, artifacts, assemble, safety, rerank, surface wiring)
+tests/                     # 82 tests (store, lifecycle, artifacts, assemble, safety, rerank, surface wiring)
 bench/                     # adversarial-30.json, safety corpus, ENFORCE gate, reports
 docs/                      # HLD/LLD/architecture, adapters, DECISIONS, memory surface html
 ```
@@ -148,8 +148,8 @@ Env contract (all adapters honour):
 | laya model load | 28-45 s once per proc | run logs (2026-10-31) |
 | laya scoring (batch 8, 160-char) | 4.1 s | run20 probe |
 | hybrid full-500 search latency | p50 39.8 s, p95 58 s (2-core, cold-loop) | kodand-full500-laya-sess report |
-| test suite | 53 tests, ~20-30 s | `pytest -q` |
-| accuracy (LongMemEval-500, identical judge) | 0.540 base -> 0.568 hybrid (+14, McNemar p=0.19, n.s.) | data/runs/kodand-full500-hybrid-H64-archive/report.json |
+| test suite | 82 tests, ~30 s | `pytest -q` |
+| accuracy (LongMemEval-500, identical judge) | 0.540 base -> 0.569 hybrid on 499 evaluated (+14, McNemar p=0.19, n.s.); sources: memorybench data/runs (external), summaries in bench/reports/runs/ | data/runs/kodand-full500-hybrid-H64-archive/report.json |
 
 ## 11. Known failure modes / edges (documented behavior)
 

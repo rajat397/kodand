@@ -11,7 +11,7 @@ any harness that can shell out) use to *capture*, *recall* and *curate* knowledg
 across sessions. It is a separate process surface from the agent itself: agents talk
 to it over CLI pipes, TCP daemons, or MCP tools. It never calls the network at
 recall time (FTS5/vec sqlite is local), and the optional decision-model tier runs
-on CPU (≤ ~830 MB resident) on the same box.
+on CPU (~1.3 GB resident; bench/reports/laya-gate1.md) on the same box.
 
 ```mermaid
 flowchart LR
@@ -28,7 +28,7 @@ flowchart LR
     SAFE["safety<br/>(secret scrub, injection corpus)"]
   end
   M1[("sqlite per repo<br/>memories + FTS + vec + artifacts")]
-  MD["laya decision model<br/>(~830 MB CPU, optional)"]
+  MD["laya decision model<br/>(~1.3 GB resident, optional)"]
   A1 -- "sessionId/entryId rows" --> R1
   A1 -- "session text" --> C1
   C1 --> SAFE --> M1

@@ -11,5 +11,5 @@ systemctl --user enable --now laya-serve kodand-recalld
 led with evidence: three run-crashes on 2026-10-30/31 were recovered by these units retro-fitted
 with `Restart=always`; before that, transient `systemd-run` silent exits cost ~8h of a run.
 
-- `laya-serve.service` — decision-model server, ~830 MB RSS once loaded, warm calls <1.5 s
+- `laya-serve.service` — decision-model server, ~1.3 GB RSS once loaded (laya-gate1.md), warm calls <1.5 s
 - `kodand-recalld.service` — per-repo sqlite recall, ~0.3–0.5 s warm, tiny RSS
